@@ -237,10 +237,11 @@ async function renderAuthBox(){
 
     $('#save-uname').onclick=async()=>{
       const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
-      const {error}=await sb.from('profiles').update({username:nu}).eq('id',currentUser.id);
-      if(error) return toast('Pseudo déjà pris ou indisponible');
+      const {error}=await sb.from('profiles').upsert({id: currentUser.id, username: nu});
+      if(error) return toast('Erreur : '+error.message);
       toast('Pseudo mis à jour !');
-      loadUserData();
+      await loadUserData();
+      renderAuthBox();
     };
 
     $('#logout-btn').onclick=async()=>{
@@ -493,7 +494,7 @@ $('#ab').onclick=async()=>{
   const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
   const {error}=await sb.auth.signInWithPassword({email,password});if(error)toast('Connexion refusée');
 };
-$('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length)openSpot(p[pi++%p.length].id,true)};
+$('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
 
 (async()=>{await load();const m=location.hash.match(/spot=([\w-]+)/);m&&openSpot(m[1],true)})();
 </script>
