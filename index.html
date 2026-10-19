@@ -16,7 +16,6 @@
 :root{--a:#ffb224;--ln:#2a2f38}
 html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none}
 #map{position:fixed;inset:0;z-index:0;background:#0c0e11}
-.leaflet-tile{filter:brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3)}
 .t-a{color:var(--a)}
 .pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 3px 10px #000a}
 .pin span{transform:rotate(45deg);font-size:16px;line-height:1}
@@ -101,10 +100,15 @@ const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Obj
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
-/* ===== Carte sombre + marqueurs ===== */
+/* ===== Carte Vue Satellite (Esri) + marqueurs ===== */
 const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
 L.control.zoom({position:'bottomleft'}).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+  maxZoom: 19
+}).addTo(map);
+
 const cl=L.markerClusterGroup({maxClusterRadius:45}).addTo(map);
 
 function render(){
