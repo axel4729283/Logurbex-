@@ -36,15 +36,15 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 <body>
 <div id="map"></div>
 
-<header class="fixed top-0 inset-x-0 z-[1000] p-2 flex gap-2 items-center" style="padding-top:max(.5rem,env(safe-area-inset-top))">
-  <div class="panel flex-1 max-w-xl flex items-center gap-1 rounded-2xl p-1.5 shadow-xl">
+<header class="fixed top-0 inset-x-0 z-[1000] p-2 flex gap-1.5 items-center" style="padding-top:max(.5rem,env(safe-area-inset-top))">
+  <div class="panel flex-1 max-w-xl flex items-center gap-1 rounded-2xl p-1.5 shadow-xl min-w-0">
     <b class="hidden sm:block px-2 t-a">Urbex France</b>
-    <form id="sf" class="flex-1 flex"><input id="q" class="inp !border-0 !bg-transparent" placeholder="Ville ou région…" enterkeyhint="search"><button class="btn !flex-none">🔎</button></form>
-    <button id="fb" class="btn !flex-none">Filtres</button>
+    <form id="sf" class="flex-1 flex min-w-0"><input id="q" class="inp !border-0 !bg-transparent w-full" placeholder="Ville ou région…" enterkeyhint="search"><button class="btn !flex-none px-2">🔎</button></form>
+    <button id="fb" class="btn !flex-none px-2.5">Filtres</button>
   </div>
-  <button id="pb" class="btn hidden !flex-none">⚠ <span id="pn"></span></button>
-  <button id="user-btn" class="btn !flex-none" aria-label="Compte utilisateur">👤</button>
-  <button id="ab" class="btn !flex-none" aria-label="Administration">🔒</button>
+  <button id="pb" class="btn hidden !flex-none px-2">⚠ <span id="pn"></span></button>
+  <button id="user-btn" class="btn !flex-none !w-10 !h-10 !p-0 flex items-center justify-center text-base" aria-label="Compte utilisateur">👤</button>
+  <button id="ab" class="btn !flex-none !w-10 !h-10 !p-0 flex items-center justify-center text-base" aria-label="Administration">🔒</button>
 </header>
 
 <div id="fp" class="panel hidden fixed z-[1000] left-2 right-2 md:right-auto md:w-96 rounded-2xl p-3 space-y-2 shadow-2xl overflow-y-auto" style="top:calc(4rem + env(safe-area-inset-top));max-height:65vh">
@@ -157,7 +157,6 @@ async function renderAuthBox(){
   currentUser=session?.user||null;
   
   if(currentUser){
-    // Connecté -> Afficher profil et bouton déconnexion
     const {data:profile}=await sb.from('profiles').select('username').eq('id',currentUser.id).single();
     authContent.innerHTML=`
       <div class="space-y-3 text-sm">
@@ -172,7 +171,6 @@ async function renderAuthBox(){
       toast('Déconnecté');
     };
   } else {
-    // Non connecté -> Formulaire Connexion / Inscription
     authContent.innerHTML=`
       <div class="flex gap-2 mb-3">
         <button id="tab-login" class="btn sel">Connexion</button>
