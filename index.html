@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0c0e11">
 <title>Urbex France</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
@@ -30,11 +28,9 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 .chip.on{opacity:1;border-color:var(--a);background:#1a1e25}
 .panel{background:rgba(18,21,26,.94);backdrop-filter:blur(8px);border:1px solid var(--ln)}
 
-.gps{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 1.25rem;border-radius:999px;border:2px solid rgba(0,0,0,.2);color:#1b1b1b;font:600 .95rem/1 "DM Sans",system-ui,sans-serif;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.35);text-shadow:0 0 6px #fffd,0 0 2px #fff;background-color:#eceeed}
-.gps:active{transform:scale(.97);filter:brightness(.93)}
-.gps-maps{background:radial-gradient(circle at 0 0,#b7dc9b 0 26%,#0000 27%),radial-gradient(circle at 100% 100%,#a9c9ef 0 20%,#0000 21%),linear-gradient(90deg,#0000 24%,#fff 24% 28%,#0000 28% 66%,#fff 66% 69%,#0000 69%),linear-gradient(#0000 34%,#f8d777 34% 54%,#0000 54%),#eceeed}
-.gps-sv{background:radial-gradient(circle at 0 0,#b7dc9b 0 22%,#0000 23%),radial-gradient(circle at 100% 100%,#a9c9ef 0 24%,#0000 25%),linear-gradient(90deg,#0000 12%,#fff 12% 16%,#0000 16% 74%,#fff 74% 78%,#0000 78%),linear-gradient(#0000 38%,#f8d777 38% 56%,#0000 56%),#eceeed}
-.gps-earth{background:radial-gradient(circle at 88% 112%,#a9d18e 0 26%,#0000 27%),radial-gradient(130% 150% at 0 130%,#0000 56%,#ffffffd9 56.5% 58.5%,#0000 59%),linear-gradient(135deg,#d3e4f6,#8db4e2)}
+/* Pilules GPS style épuré */
+.gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
+.gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
 </style>
 </head>
 <body>
@@ -47,6 +43,7 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
     <button id="fb" class="btn !flex-none">Filtres</button>
   </div>
   <button id="pb" class="btn hidden !flex-none">⚠ <span id="pn"></span></button>
+  <button id="user-btn" class="btn !flex-none" aria-label="Compte utilisateur">👤</button>
   <button id="ab" class="btn !flex-none" aria-label="Administration">🔒</button>
 </header>
 
@@ -66,6 +63,7 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 
 <aside id="sheet" class="panel hidden fixed z-[1100] inset-x-0 bottom-0 md:inset-y-0 md:left-auto md:right-0 md:w-[420px] rounded-t-2xl md:rounded-none overflow-y-auto shadow-2xl" style="max-height:82vh"></aside>
 
+<!-- Modal d'ajout / modification de spot -->
 <div id="modal" class="hidden fixed inset-0 z-[1200] bg-black/70 items-end md:items-center justify-center flex">
   <form id="f" class="panel w-full md:w-[540px] overflow-y-auto rounded-t-2xl md:rounded-2xl p-4 space-y-3" style="max-height:94vh">
     <div class="flex justify-between items-center"><h2 id="mt" class="text-lg font-bold">Ajouter un lieu</h2><button type="button" id="mx" class="text-2xl px-2" aria-label="Fermer">×</button></div>
@@ -87,30 +85,48 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
   </form>
 </div>
 
+<!-- Modal Authentification (Connexion / Inscription) -->
+<div id="auth-modal" class="hidden fixed inset-0 z-[1250] bg-black/70 items-center justify-center flex p-3">
+  <div class="panel w-full md:w-[400px] rounded-2xl p-5 space-y-4 shadow-2xl">
+    <div class="flex justify-between items-center">
+      <h2 id="auth-title" class="text-lg font-bold">Mon Compte</h2>
+      <button id="auth-close" class="text-2xl px-2">×</button>
+    </div>
+    <div id="auth-content"></div>
+  </div>
+</div>
+
 <div id="toast" class="hidden fixed z-[1300] left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-700 rounded-full px-4 py-2 text-sm shadow-xl" style="top:calc(4.5rem + env(safe-area-inset-top))"></div>
 
 <script>
-/* ===== CONFIG : colle ici l’URL et la clé « anon public » de ton projet Supabase ===== */
-const SB_URL='https://bprsxfrscxmwqqohyzbb.supabase.co',SB_KEY='sb_publishable_hh65k09ofnvS1_rkBaSRxw_I9d01qD8';
+/* ===== CONFIG SUPABASE ===== */
+const SB_URL = 'https://bprsxfrscxmwqqohyzbb.supabase.co';
+const SB_KEY = 'sb_publishable_hh65k09ofnvS1_rkBaSRxw_I9d01qD8';
 
 const CAT={usine:['🏭','Usine / industriel'],maison:['🏚️','Maison / manoir'],hopital:['🏥','Hôpital / asile'],eglise:['⛪','Église / couvent'],chateau:['🏰','Château'],militaire:['🪖','Militaire / bunker'],ecole:['🏫','École'],autre:['📍','Autre']};
 const ACC={facile:['🟢','Facile'],moyen:['🟠','Moyen'],difficile:['🔴','Difficile / escalade']};
 const DNG={faible:['#3fb950','Faible'],effondrement:['#f0883e','Risque d’effondrement'],gardien:['#d4a72c','Gardien / alarme'],amiante:['#a371f7','Amiante / gaz'],dangereux:['#f85149','Dangereux']};
 
-const sb=supabase.createClient(SB_URL,SB_KEY),$=s=>document.querySelector(s);
+const sb=supabase.createClient(SB_URL, SB_KEY),$=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v[0][0]==='#'?'':v[0]+' '}${v[1]}</option>`).join('');
-let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0;
+let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null;
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
-/* ===== Carte satellite hybride + marqueurs ===== */
+/* ===== Carte Vue Satellite Hybride ===== */
 const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
 L.control.zoom({position:'bottomleft'}).addTo(map);
-L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3'],attribution:'© Google Maps'}).addTo(map);
+
+L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+  maxZoom: 20,
+  subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+  attribution: '&copy; Google Maps'
+}).addTo(map);
+
 const cl=L.markerClusterGroup({maxClusterRadius:45}).addTo(map);
 
 function render(){
@@ -120,7 +136,7 @@ function render(){
     const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
     L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
   });
-  $('#cnt').textContent=n+' / '+spots.length+' lieux affichés · v3';
+  $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
   const p=spots.filter(s=>s.status!=='active').length;
   $('#pb').classList.toggle('hidden',!(admin&&p));$('#pn').textContent=p;
 }
@@ -128,6 +144,78 @@ async function load(){
   const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
   if(error)return toast('Base inaccessible : '+error.message);
   spots=data||[];render();
+}
+
+/* ===== Gestion des Comptes & Auth ===== */
+const authModal=$('#auth-modal'), authContent=$('#auth-content');
+function toggleAuthModal(show){authModal.classList.toggle('hidden',!show)}
+$('#user-btn').onclick=()=>renderAuthBox();
+$('#auth-close').onclick=()=>toggleAuthModal(false);
+
+async function renderAuthBox(){
+  const {data:{session}}=await sb.auth.getSession();
+  currentUser=session?.user||null;
+  
+  if(currentUser){
+    // Connecté -> Afficher profil et bouton déconnexion
+    const {data:profile}=await sb.from('profiles').select('username').eq('id',currentUser.id).single();
+    authContent.innerHTML=`
+      <div class="space-y-3 text-sm">
+        <p>Connecté en tant que : <b class="t-a">${esc(profile?.username||currentUser.email)}</b></p>
+        <p class="text-xs text-zinc-400">${esc(currentUser.email)}</p>
+        <button id="logout-btn" class="btn w-full !bg-red-500/20 !border-red-500/50 text-red-300">Se déconnecter</button>
+      </div>
+    `;
+    $('#logout-btn').onclick=async()=>{
+      await sb.auth.signOut();
+      toggleAuthModal(false);
+      toast('Déconnecté');
+    };
+  } else {
+    // Non connecté -> Formulaire Connexion / Inscription
+    authContent.innerHTML=`
+      <div class="flex gap-2 mb-3">
+        <button id="tab-login" class="btn sel">Connexion</button>
+        <button id="tab-signup" class="btn">Inscription</button>
+      </div>
+      <form id="auth-form" class="space-y-3">
+        <input id="auth-email" type="email" required class="inp" placeholder="Adresse e-mail">
+        <input id="auth-pass" type="password" required minlength="6" class="inp" placeholder="Mot de passe (6 car. min)">
+        <div id="signup-extra" class="hidden">
+          <input id="auth-username" type="text" class="inp" placeholder="Pseudo d'explorateur">
+        </div>
+        <button type="submit" id="auth-submit" class="btn w-full !font-semibold" style="background:var(--a);border-color:var(--a);color:#111">Se connecter</button>
+      </form>
+    `;
+    
+    let isSignup=false;
+    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login').classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
+    $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup').classList.add('sel'); $('#tab-login').classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
+    
+    $('#auth-form').onsubmit=async e=>{
+      e.preventDefault();
+      const email=$('#auth-email').value.trim();
+      const password=$('#auth-pass').value.trim();
+      const username=$('#auth-username')?.value.trim();
+      
+      if(isSignup){
+        const {error}=await sb.auth.signUp({
+          email,
+          password,
+          options:{ data:{ username: username || 'Explorateur' } }
+        });
+        if(error) return toast(error.message);
+        toast('Compte créé avec succès !');
+      } else {
+        const {error}=await sb.auth.signInWithPassword({email,password});
+        if(error) return toast('Erreur de connexion : '+error.message);
+        toast('Connecté avec succès !');
+      }
+      toggleAuthModal(false);
+      renderAuthBox();
+    };
+  }
+  toggleAuthModal(true);
 }
 
 /* ===== Filtres & recherche ===== */
@@ -158,12 +246,15 @@ function openSpot(id,fly){
     <h2 class="text-xl font-bold">${esc(s.title)}</h2>
     ${s.status!=='active'?`<div class="rounded-lg bg-amber-500/15 text-amber-300 text-sm p-2">⏳ En attente de vérification : des membres signalent que ce lieu n’existe plus.</div>`:''}
     <div class="flex flex-wrap gap-2 text-xs"><span class="pill">${a[0]} ${a[1]}</span><span class="pill" style="border-color:${d[0]}">${ic(d)}${d[1]}</span></div>
+    
+    <!-- Boutons Pilules GPS Google Maps, Street View, Google Earth -->
     <div class="flex flex-wrap gap-2 pt-1">
-      <a class="gps gps-maps" href="https://www.google.com/maps/search/?api=1&amp;query=${s.lat},${s.lng}" target="_blank" rel="noopener">Google Maps</a>
-      <a class="gps gps-sv" href="https://www.google.com/maps/@?api=1&amp;map_action=pano&amp;viewpoint=${s.lat},${s.lng}" target="_blank" rel="noopener">Street View</a>
-      <a class="gps gps-earth" href="https://earth.google.com/web/@${s.lat},${s.lng},0a,500d,35y,0h,0t,0r" target="_blank" rel="noopener">Google Earth</a>
+      <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">🗺️ Google Maps</a>
+      <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">📸 Street View</a>
+      <a href="https://earth.google.com/web/@${s.lat},${s.lng},100a,35y,0h,0t,0r" target="_blank" rel="noopener" class="gps-pill">🌍 Google Earth</a>
     </div>
-    <p class="whitespace-pre-line text-sm text-zinc-300">${esc(s.description)}</p>
+
+    <p class="whitespace-pre-line text-sm text-zinc-300 pt-1">${esc(s.description)}</p>
     <div class="rounded-xl border border-zinc-800 p-3">
       <div class="text-sm font-semibold mb-2">Toujours là ? <span class="font-normal text-zinc-400">${s.still_yes} oui · ${s.still_no} non</span></div>
       <div class="flex gap-2"><button class="btn ${mv==='1'?'sel':''}" onclick="vote('${s.id}',true)">👍 Oui, il existe</button><button class="btn ${mv==='0'?'sel':''}" onclick="vote('${s.id}',false)">💥 Démoli / fermé</button></div>
@@ -234,7 +325,7 @@ F.onsubmit=async e=>{
   closeForm();await load();toast(id?'Lieu modifié':'Lieu ajouté, merci !');id&&openSpot(id,true);
 };
 
-/* ===== Administration (modération manuelle) ===== */
+/* ===== Administration ===== */
 const editSpot=id=>openForm(spots.find(x=>x.id===id));
 async function delSpot(id){if(!confirm('Supprimer définitivement ce lieu et ses commentaires ?'))return;const {error}=await sb.from('spots').delete().eq('id',id);if(error)return toast(error.message);closeSheet();await load();toast('Lieu supprimé')}
 async function keepSpot(id){
