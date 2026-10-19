@@ -42,6 +42,7 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
     <button id="fb" class="btn !flex-none px-2.5">Filtres</button>
   </div>
   <button id="pb" class="btn hidden !flex-none px-2">⚠ <span id="pn"></span></button>
+  <button id="lb-btn" class="btn !flex-none !w-10 !h-10 !p-0 flex items-center justify-center text-base" aria-label="Classement">🏆</button>
   <button id="user-btn" class="btn !flex-none !w-10 !h-10 !p-0 flex items-center justify-center text-base" aria-label="Compte utilisateur">👤</button>
   <button id="ab" class="btn !flex-none !w-10 !h-10 !p-0 flex items-center justify-center text-base" aria-label="Administration">🔒</button>
 </header>
@@ -82,6 +83,17 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
     <textarea name="urls" rows="2" class="inp" placeholder="Ou liens d’images (un par ligne)"></textarea>
     <button type="submit" class="btn w-full !font-semibold" style="background:var(--a);border-color:var(--a);color:#111">Publier</button>
   </form>
+</div>
+
+<!-- Modal Classement -->
+<div id="lb-modal" class="hidden fixed inset-0 z-[1250] bg-black/70 items-center justify-center flex p-3">
+  <div class="panel w-full md:w-[440px] rounded-2xl p-5 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+    <div class="flex justify-between items-center">
+      <h2 class="text-lg font-bold">🏆 Classement des Explorateurs</h2>
+      <button id="lb-close" class="text-2xl px-2">×</button>
+    </div>
+    <div id="lb-content" class="space-y-2"></div>
+  </div>
 </div>
 
 <!-- Modal Profil & Authentification -->
@@ -163,10 +175,10 @@ async function loadUserData(){
 /* ===== Système de Niveaux & Barre de Progression ===== */
 function getRankProgress(count){
   if(count >= 15){
-    return { name: '👑 Légende Urbex', color: '#ffb224', current: count, next: 15, pct: 100, label: 'Niveau Maximum !' };
+    return { name: '👑 Urbex Légende', color: '#ffb224', current: count, next: 15, pct: 100, label: 'Niveau Maximum !' };
   } else if(count >= 8){
     const pct = Math.round(((count - 8) / (15 - 8)) * 100);
-    return { name: '🥇 Urban Stalker', color: '#f0883e', current: count, next: 15, pct, label: `${15 - count} lieu(x) avant Légende Urbex` };
+    return { name: '🥇 Urban Stalker', color: '#f0883e', current: count, next: 15, pct, label: `${15 - count} lieu(x) avant Urbex Légende` };
   } else if(count >= 3){
     const pct = Math.round(((count - 3) / (8 - 3)) * 100);
     return { name: '🥈 Explorateur', color: '#3fb950', current: count, next: 8, pct, label: `${8 - count} lieu(x) avant Urban Stalker` };
@@ -175,6 +187,36 @@ function getRankProgress(count){
     return { name: '🥉 Recrue', color: '#a371f7', current: count, next: 3, pct, label: `${3 - count} lieu(x) avant Explorateur` };
   }
 }
+
+/* ===== Fenêtre Classement (Leaderboard) ===== */
+async function openLeaderboard(){
+  const {data:profiles}=await sb.from('profiles').select('id, username');
+  const counts={};
+  spots.forEach(s=>{
+    if(s.user_id) counts[s.user_id]=(counts[s.user_id]||0)+1;
+  });
+  const list=(profiles||[]).map(p=>{
+    const count=counts[p.id]||0;
+    return {username:p.username||'Explorateur', count, rank:getRankProgress(count)};
+  }).sort((a,b)=>b.count-a.count);
+
+  $('#lb-content').innerHTML=list.map((item,idx)=>`
+    <div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div class="flex items-center gap-3">
+        <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
+        <div>
+          <div class="font-semibold text-sm">${esc(item.username)}</div>
+          <div class="text-xs" style="color:${item.rank.color}">${item.rank.name}</div>
+        </div>
+      </div>
+      <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
+    </div>
+  `).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
+
+  $('#lb-modal').classList.remove('hidden');
+}
+$('#lb-btn').onclick=openLeaderboard;
+$('#lb-close').onclick=()=>$('#lb-modal').classList.add('hidden');
 
 /* ===== Profil & Auth ===== */
 const authModal=$('#auth-modal'), authContent=$('#auth-content');
@@ -400,7 +442,21 @@ async function toggleFav(id){
 async function loadCom(id){
   const {data}=await sb.from('comments').select('*').eq('spot_id',id).order('created_at',{ascending:false});
   const el=$('#cm');if(!el)return;
-  el.innerHTML=(data||[]).map(c=>`<div class="rounded-lg bg-zinc-900 p-2"><div class="text-xs text-zinc-500 flex justify-between"><span class="font-semibold text-zinc-300">${esc(c.author)} <span class="font-normal text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></span>${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}</div><p class="mt-1">${esc(c.body)}</p></div>`).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
+  el.innerHTML=(data||[]).map(c=>{
+    let rankHtml='';
+    if(c.user_id){
+      const count=spots.filter(s=>s.user_id===c.user_id).length;
+      const r=getRankProgress(count);
+      rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
+    }
+    return `<div class="rounded-lg bg-zinc-900 p-2">
+      <div class="text-xs text-zinc-500 flex justify-between items-center">
+        <div><span class="font-semibold text-zinc-300">${esc(c.author)}</span> ${rankHtml} <span class="text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></div>
+        ${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}
+      </div>
+      <p class="mt-1">${esc(c.body)}</p>
+    </div>`;
+  }).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
 }
 
 async function addCom(id){
