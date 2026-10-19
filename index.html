@@ -173,32 +173,35 @@ async function load(){
   const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
   if(error)return toast('Base inaccessible : '+error.message);
   spots=data||[];render();
-  loadUserData();
+  await loadUserData();
 }
 
 async function loadUserData(){
-  const {data:{session}}=await sb.auth.getSession();
-  currentUser=session?.user||null;
-  if(currentUser){
-    const {data:p}=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-    currentProfile=p;
-    const {data:f}=await sb.from('favorites').select('spot_id').eq('user_id',currentUser.id);
-    userFavorites=new Set((f||[]).map(x=>x.spot_id));
+  try {
+    const {data:{session}}=await sb.auth.getSession();
+    currentUser=session?.user||null;
+    if(currentUser){
+      const {data:p}=await sb.from('profiles').select('*').eq('id',currentUser.id).maybeSingle();
+      currentProfile=p;
+      const {data:f}=await sb.from('favorites').select('spot_id').eq('user_id',currentUser.id);
+      userFavorites=new Set((f||[]).map(x=>x.spot_id));
 
-    // Charger les notifications (commentaires sur les spots de l'utilisateur)
-    const mySpotIds=spots.filter(s=>s.user_id===currentUser.id).map(s=>s.id);
-    if(mySpotIds.length > 0){
-      const {data:coms}=await sb.from('comments').select('*').in('spot_id', mySpotIds).neq('user_id', currentUser.id).order('created_at',{ascending:false});
-      userNotifications=coms||[];
+      const mySpotIds=spots.filter(s=>s.user_id===currentUser.id).map(s=>s.id);
+      if(mySpotIds.length > 0){
+        const {data:coms}=await sb.from('comments').select('*').in('spot_id', mySpotIds).neq('user_id', currentUser.id).order('created_at',{ascending:false});
+        userNotifications=coms||[];
+      } else {
+        userNotifications=[];
+      }
+      $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
     } else {
+      currentProfile=null;
+      userFavorites.clear();
       userNotifications=[];
+      $('#notif-dot').classList.add('hidden');
     }
-    $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
-  } else {
-    currentProfile=null;
-    userFavorites.clear();
-    userNotifications=[];
-    $('#notif-dot').classList.add('hidden');
+  } catch(e) {
+    console.error('Erreur user data:', e);
   }
 }
 
@@ -405,7 +408,7 @@ async function renderAuthBox(){
     `;
     
     let isSignup=false;
-    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login'].classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
+    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login').classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
     $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup').classList.add('sel'); $('#tab-login').classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
     
     $('#auth-form').onsubmit=async e=>{
