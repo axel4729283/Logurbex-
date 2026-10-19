@@ -247,6 +247,50 @@ $('#ab').onclick=async()=>{
 $('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length)openSpot(p[pi++%p.length].id,true)};
 
 (async()=>{await load();const m=location.hash.match(/spot=([\w-]+)/);m&&openSpot(m[1],true)})();
+  <!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c0e11">
+<title>Urbex France</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--a:#ffb224;--ln:#2a2f38}
+html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none}
+#map{position:fixed;inset:0;z-index:0;background:#0c0e11}
+.t-a{color:var(--a)}
+.pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 3px 10px #000a}
+.pin span{transform:rotate(45deg);font-size:16px;line-height:1}
+.pin.pend{border-style:dashed;opacity:.7}
+.pill{border:1px solid var(--ln);border-radius:999px;padding:.2rem .65rem}
+.btn{flex:1;text-align:center;border:1px solid var(--ln);background:#1a1e25;border-radius:.75rem;padding:.55rem .75rem;font-size:.85rem}
+.btn:active,.btn.sel{background:var(--a);border-color:var(--a);color:#111}
+.inp{width:100%;background:#0c0e11;border:1px solid var(--ln);border-radius:.6rem;padding:.55rem .7rem;font-size:16px}
+.chip{border:1px solid var(--ln);border-radius:999px;padding:.3rem .65rem;font-size:.8rem;opacity:.45}
+.chip.on{opacity:1;border-color:var(--a);background:#1a1e25}
+.panel{background:rgba(18,21,26,.94);backdrop-filter:blur(8px);border:1px solid var(--ln)}
+.map-pill{display:flex;align-items:center;justify-content:center;gap:.35rem;padding:.5rem .7rem;border-radius:999px;border:1px solid var(--ln);background:rgba(26,30,37,0.9);font-size:.75rem;font-weight:500;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.4);transition:transform .1s,border-color .2s}
+.map-pill:active{transform:scale(0.96);border-color:var(--a);background:var(--a);color:#111}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<header class="fixed top-0 inset-x-0 z-[1000] p-2 flex gap-2 items-center" style="padding-top:max(.5rem,env(safe-area-inset-top))">
+  <div class="panel flex-1 max-w-xl flex items-center gap-1 rounded-2xl p-1.5 shadow-xl">
+    <b class="hidden sm:block px-2 t-a">Urbex France</b>
+    <form id="sf" class="flex-1 flex"><input id="q" class="inp !border-0 !bg-transparent" placeholder="Ville ou région…" enterkeyhint="search"><button class="btn !flex-none">🔎</button></form>
+    <button id="fb" class="btn !flex-none">Filtres</button>
+  </div>
+  <button id="pb" class="btn hidden !flex-none
+
 </script>
 </body>
 </html>
