@@ -27,6 +27,10 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 .chip{border:1px solid var(--ln);border-radius:999px;padding:.3rem .65rem;font-size:.8rem;opacity:.45}
 .chip.on{opacity:1;border-color:var(--a);background:#1a1e25}
 .panel{background:rgba(18,21,26,.94);backdrop-filter:blur(8px);border:1px solid var(--ln)}
+
+/* Pilules GPS style épuré */
+.gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
+.gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
 </style>
 </head>
 <body>
@@ -157,12 +161,26 @@ function openSpot(id,fly){
     <h2 class="text-xl font-bold">${esc(s.title)}</h2>
     ${s.status!=='active'?`<div class="rounded-lg bg-amber-500/15 text-amber-300 text-sm p-2">⏳ En attente de vérification : des membres signalent que ce lieu n’existe plus.</div>`:''}
     <div class="flex flex-wrap gap-2 text-xs"><span class="pill">${a[0]} ${a[1]}</span><span class="pill" style="border-color:${d[0]}">${ic(d)}${d[1]}</span></div>
-    <p class="whitespace-pre-line text-sm text-zinc-300">${esc(s.description)}</p>
+    
+    <!-- Liens directes GPS Google Maps, Street View, Google Earth -->
+    <div class="flex flex-wrap gap-2 pt-1">
+      <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">
+        Google Maps
+      </a>
+      <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">
+        Street View
+      </a>
+      <a href="https://earth.google.com/web/@${s.lat},${s.lng},100a,35y,0h,0t,0r" target="_blank" rel="noopener" class="gps-pill">
+        Google Earth
+      </a>
+    </div>
+
+    <p class="whitespace-pre-line text-sm text-zinc-300 pt-1">${esc(s.description)}</p>
     <div class="rounded-xl border border-zinc-800 p-3">
       <div class="text-sm font-semibold mb-2">Toujours là ? <span class="font-normal text-zinc-400">${s.still_yes} oui · ${s.still_no} non</span></div>
       <div class="flex gap-2"><button class="btn ${mv==='1'?'sel':''}" onclick="vote('${s.id}',true)">👍 Oui, il existe</button><button class="btn ${mv==='0'?'sel':''}" onclick="vote('${s.id}',false)">💥 Démoli / fermé</button></div>
     </div>
-    <div class="flex gap-2"><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}">🧭 Itinéraire</a><button class="btn" onclick="share('${s.id}')">🔗 Partager</button></div>
+    <div class="flex gap-2"><button class="btn" onclick="share('${s.id}')">🔗 Partager le lieu</button></div>
     ${admin?`<div class="flex flex-wrap gap-2 border-t border-zinc-800 pt-3"><button class="btn" onclick="editSpot('${s.id}')">✏️ Modifier</button><button class="btn" onclick="keepSpot('${s.id}')">✅ Il existe : lever l’alerte</button><button class="btn !border-red-500 text-red-400" onclick="delSpot('${s.id}')">🗑 Supprimer</button></div>`:''}
     <h3 class="font-semibold pt-2">Commentaires</h3>
     <div id="cm" class="space-y-2 text-sm"></div>
@@ -247,50 +265,6 @@ $('#ab').onclick=async()=>{
 $('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length)openSpot(p[pi++%p.length].id,true)};
 
 (async()=>{await load();const m=location.hash.match(/spot=([\w-]+)/);m&&openSpot(m[1],true)})();
-  <!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0c0e11">
-<title>Urbex France</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<style>
-:root{--a:#ffb224;--ln:#2a2f38}
-html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none}
-#map{position:fixed;inset:0;z-index:0;background:#0c0e11}
-.t-a{color:var(--a)}
-.pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;border:2px solid #fff;box-shadow:0 3px 10px #000a}
-.pin span{transform:rotate(45deg);font-size:16px;line-height:1}
-.pin.pend{border-style:dashed;opacity:.7}
-.pill{border:1px solid var(--ln);border-radius:999px;padding:.2rem .65rem}
-.btn{flex:1;text-align:center;border:1px solid var(--ln);background:#1a1e25;border-radius:.75rem;padding:.55rem .75rem;font-size:.85rem}
-.btn:active,.btn.sel{background:var(--a);border-color:var(--a);color:#111}
-.inp{width:100%;background:#0c0e11;border:1px solid var(--ln);border-radius:.6rem;padding:.55rem .7rem;font-size:16px}
-.chip{border:1px solid var(--ln);border-radius:999px;padding:.3rem .65rem;font-size:.8rem;opacity:.45}
-.chip.on{opacity:1;border-color:var(--a);background:#1a1e25}
-.panel{background:rgba(18,21,26,.94);backdrop-filter:blur(8px);border:1px solid var(--ln)}
-.map-pill{display:flex;align-items:center;justify-content:center;gap:.35rem;padding:.5rem .7rem;border-radius:999px;border:1px solid var(--ln);background:rgba(26,30,37,0.9);font-size:.75rem;font-weight:500;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.4);transition:transform .1s,border-color .2s}
-.map-pill:active{transform:scale(0.96);border-color:var(--a);background:var(--a);color:#111}
-</style>
-</head>
-<body>
-<div id="map"></div>
-
-<header class="fixed top-0 inset-x-0 z-[1000] p-2 flex gap-2 items-center" style="padding-top:max(.5rem,env(safe-area-inset-top))">
-  <div class="panel flex-1 max-w-xl flex items-center gap-1 rounded-2xl p-1.5 shadow-xl">
-    <b class="hidden sm:block px-2 t-a">Urbex France</b>
-    <form id="sf" class="flex-1 flex"><input id="q" class="inp !border-0 !bg-transparent" placeholder="Ville ou région…" enterkeyhint="search"><button class="btn !flex-none">🔎</button></form>
-    <button id="fb" class="btn !flex-none">Filtres</button>
-  </div>
-  <button id="pb" class="btn hidden !flex-none
-
 </script>
 </body>
 </html>
