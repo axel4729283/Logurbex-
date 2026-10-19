@@ -162,16 +162,16 @@ function openSpot(id,fly){
     ${s.status!=='active'?`<div class="rounded-lg bg-amber-500/15 text-amber-300 text-sm p-2">⏳ En attente de vérification : des membres signalent que ce lieu n’existe plus.</div>`:''}
     <div class="flex flex-wrap gap-2 text-xs"><span class="pill">${a[0]} ${a[1]}</span><span class="pill" style="border-color:${d[0]}">${ic(d)}${d[1]}</span></div>
     
-    <!-- Liens directes GPS Google Maps, Street View, Google Earth -->
+    <!-- Boutons Pilules GPS Google Maps, Street View, Google Earth -->
     <div class="flex flex-wrap gap-2 pt-1">
       <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">
-        Google Maps
+        🗺️ Google Maps
       </a>
       <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${s.lat},${s.lng}" target="_blank" rel="noopener" class="gps-pill">
-        Street View
+        📸 Street View
       </a>
       <a href="https://earth.google.com/web/@${s.lat},${s.lng},100a,35y,0h,0t,0r" target="_blank" rel="noopener" class="gps-pill">
-        Google Earth
+        🌍 Google Earth
       </a>
     </div>
 
