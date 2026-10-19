@@ -50,7 +50,7 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
   <button id="pb" class="btn hidden !flex-none px-2 text-xs">⚠ <span id="pn"></span></button>
   <button id="admin-notif-btn" class="btn hidden !flex-none !w-9 !h-9 !p-0 flex items-center justify-center text-sm" aria-label="Notifications Admin">🔔</button>
   <button id="lb-btn" class="btn !flex-none !w-9 !h-9 !p-0 flex items-center justify-center text-sm" aria-label="Classement">🏆</button>
-  <button id="user-btn" class="btn !flex-none !w-9 !h-9 !p-0 flex items-center justify-center text-sm" aria-label="Compte utilisateur">👤</button>
+  <button id="user-btn" class="btn relative !flex-none !w-9 !h-9 !p-0 flex items-center justify-center text-sm" aria-label="Compte utilisateur">👤<span id="notif-dot" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#0c0e11]"></span></button>
   <button id="ab" class="btn !flex-none !w-9 !h-9 !p-0 flex items-center justify-center text-sm" aria-label="Administration">🔒</button>
 </header>
 
@@ -141,7 +141,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v[0][0]==='#'?'':v[0]+' '}${v[1]}</option>`).join('');
-let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null;
+let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
@@ -184,9 +184,21 @@ async function loadUserData(){
     currentProfile=p;
     const {data:f}=await sb.from('favorites').select('spot_id').eq('user_id',currentUser.id);
     userFavorites=new Set((f||[]).map(x=>x.spot_id));
+
+    // Charger les notifications (commentaires sur les spots de l'utilisateur)
+    const mySpotIds=spots.filter(s=>s.user_id===currentUser.id).map(s=>s.id);
+    if(mySpotIds.length > 0){
+      const {data:coms}=await sb.from('comments').select('*').in('spot_id', mySpotIds).neq('user_id', currentUser.id).order('created_at',{ascending:false});
+      userNotifications=coms||[];
+    } else {
+      userNotifications=[];
+    }
+    $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
   } else {
     currentProfile=null;
     userFavorites.clear();
+    userNotifications=[];
+    $('#notif-dot').classList.add('hidden');
   }
 }
 
@@ -318,6 +330,26 @@ async function renderAuthBox(){
           </div>
         </div>
 
+        <!-- Notifications / Activité sur mes spots -->
+        <div>
+          <h3 class="text-sm font-semibold mb-2">🔔 Activité sur mes spots (${userNotifications.length})</h3>
+          <div class="max-h-40 overflow-y-auto space-y-2 text-xs">
+            ${userNotifications.map(n=>{
+              const sp=spots.find(x=>x.id===n.spot_id);
+              const date=new Date(n.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+              return sp ? `
+                <div class="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1 cursor-pointer hover:border-amber-500/50 transition" onclick="toggleAuthModal(false); openSpot('${sp.id}', true);">
+                  <div class="flex justify-between items-center text-zinc-400">
+                    <span><b>${esc(n.author)}</b> sur <span class="text-zinc-200">${esc(sp.title)}</span></span>
+                    <span class="text-[10px]">${date}</span>
+                  </div>
+                  <p class="text-zinc-300 italic">« ${esc(n.body)} »</p>
+                </div>
+              ` : '';
+            }).join('') || '<p class="text-zinc-500 text-center py-2">Aucune nouvelle interaction sur vos lieux.</p>'}
+          </div>
+        </div>
+
         <!-- Favoris -->
         <div>
           <h3 class="text-sm font-semibold mb-2">⭐ Mes Favoris (${userFavorites.size})</h3>
@@ -373,7 +405,7 @@ async function renderAuthBox(){
     `;
     
     let isSignup=false;
-    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login').classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
+    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login'].classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
     $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup').classList.add('sel'); $('#tab-login').classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
     
     $('#auth-form').onsubmit=async e=>{
