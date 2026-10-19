@@ -28,6 +28,13 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 .chip.on{opacity:1;border-color:var(--a);background:#1a1e25}
 .panel{background:rgba(18,21,26,.94);backdrop-filter:blur(8px);border:1px solid var(--ln)}
 
+@keyframes scintil {
+  0% { opacity: 1; text-shadow: 0 0 6px #b000ff; filter: brightness(1); }
+  50% { opacity: 0.6; text-shadow: 0 0 16px #ff00ff; filter: brightness(1.4); }
+  100% { opacity: 1; text-shadow: 0 0 6px #b000ff; filter: brightness(1); }
+}
+.scintillating { animation: scintil 1.2s infinite ease-in-out; }
+
 .gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
 .gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
 </style>
@@ -172,19 +179,28 @@ async function loadUserData(){
   }
 }
 
-/* ===== Système de Niveaux & Barre de Progression ===== */
+/* ===== Système de Niveaux (jusqu'à 50+ lieux) ===== */
 function getRankProgress(count){
-  if(count >= 15){
-    return { name: '👑 Urbex Légende', color: '#ffb224', current: count, next: 15, pct: 100, label: 'Niveau Maximum !' };
+  if(count >= 50){
+    return { name: '⚡ Dieux des urbex', color: '#b000ff', current: count, next: 50, pct: 100, label: 'Niveau Maximum !', scintillate: true };
+  } else if(count >= 35){
+    const pct = Math.round(((count - 35) / (50 - 35)) * 100);
+    return { name: '👑 Roi des Urbex', color: '#ffd700', current: count, next: 50, pct, label: `${50 - count} lieu(x) avant Dieux des urbex` };
+  } else if(count >= 25){
+    const pct = Math.round(((count - 25) / (35 - 25)) * 100);
+    return { name: '🐐 Goat des urbex', color: '#f0883e', current: count, next: 35, pct, label: `${35 - count} lieu(x) avant Roi des Urbex` };
+  } else if(count >= 15){
+    const pct = Math.round(((count - 15) / (25 - 15)) * 100);
+    return { name: '🌙 Urbexeur de la Nuit', color: '#33b3ae', current: count, next: 25, pct, label: `${25 - count} lieu(x) avant Goat des urbex` };
   } else if(count >= 8){
     const pct = Math.round(((count - 8) / (15 - 8)) * 100);
-    return { name: '🥇 Urban Stalker', color: '#f0883e', current: count, next: 15, pct, label: `${15 - count} lieu(x) avant Urbex Légende` };
+    return { name: '🔦 Urbexeur', color: '#3fb950', current: count, next: 15, pct, label: `${15 - count} lieu(x) avant Urbexeur de la Nuit` };
   } else if(count >= 3){
     const pct = Math.round(((count - 3) / (8 - 3)) * 100);
-    return { name: '🥈 Explorateur', color: '#3fb950', current: count, next: 8, pct, label: `${8 - count} lieu(x) avant Urban Stalker` };
+    return { name: '🧭 p’tit explorateur', color: '#a371f7', current: count, next: 8, pct, label: `${8 - count} lieu(x) avant Urbexeur` };
   } else {
     const pct = Math.round((count / 3) * 100);
-    return { name: '🥉 Recrue', color: '#a371f7', current: count, next: 3, pct, label: `${3 - count} lieu(x) avant Explorateur` };
+    return { name: '🌱 petit neuille', color: '#8b949e', current: count, next: 3, pct, label: `${3 - count} lieu(x) avant p’tit explorateur` };
   }
 }
 
@@ -200,18 +216,19 @@ async function openLeaderboard(){
     return {username:p.username||'Explorateur', count, rank:getRankProgress(count)};
   }).sort((a,b)=>b.count-a.count);
 
-  $('#lb-content').innerHTML=list.map((item,idx)=>`
-    <div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+  $('#lb-content').innerHTML=list.map((item,idx)=>{
+    const scClass=item.rank.scintillate?'scintillating':'';
+    return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
       <div class="flex items-center gap-3">
         <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
         <div>
           <div class="font-semibold text-sm">${esc(item.username)}</div>
-          <div class="text-xs" style="color:${item.rank.color}">${item.rank.name}</div>
+          <div class="text-xs ${scClass}" style="color:${item.rank.color}">${item.rank.name}</div>
         </div>
       </div>
       <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
-    </div>
-  `).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
+    </div>`;
+  }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
 
   $('#lb-modal').classList.remove('hidden');
 }
@@ -230,17 +247,18 @@ async function renderAuthBox(){
   if(currentUser){
     const mySpots=spots.filter(s=>s.user_id===currentUser.id);
     const prog=getRankProgress(mySpots.length);
+    const scClass=prog.scintillate?'scintillating':'';
     
     authContent.innerHTML=`
       <div class="space-y-4">
         <!-- Badge & Progression -->
         <div class="rounded-xl p-3 border border-zinc-800 bg-zinc-900/60 space-y-2">
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold border-2 shrink-0" style="border-color:${prog.color};background:${prog.color}22">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold border-2 shrink-0 ${scClass}" style="border-color:${prog.color};background:${prog.color}22;color:${prog.color}">
               ${mySpots.length}
             </div>
             <div class="flex-1">
-              <div class="font-bold text-base" style="color:${prog.color}">${prog.name}</div>
+              <div class="font-bold text-base ${scClass}" style="color:${prog.color}">${prog.name}</div>
               <div class="text-xs text-zinc-400">${mySpots.length} spot(s) publié(s)</div>
             </div>
           </div>
@@ -447,7 +465,8 @@ async function loadCom(id){
     if(c.user_id){
       const count=spots.filter(s=>s.user_id===c.user_id).length;
       const r=getRankProgress(count);
-      rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
+      const scClass=r.scintillate?'scintillating':'';
+      rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
     }
     return `<div class="rounded-lg bg-zinc-900 p-2">
       <div class="text-xs text-zinc-500 flex justify-between items-center">
