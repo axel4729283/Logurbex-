@@ -11,7 +11,7 @@
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--a:#ffb224;--ln:#2a2f38}
 html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none}
@@ -134,7 +134,18 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 
 <div id="toast" class="hidden fixed z-[1300] left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-700 rounded-full px-4 py-2 text-sm shadow-xl" style="top:calc(4.5rem + env(safe-area-inset-top))"></div>
 
+<!-- Div d'affichage des erreurs si plantage -->
+<div id="err-box" class="hidden fixed inset-x-4 top-20 z-[9999] bg-red-950/90 border border-red-500 text-red-200 p-4 rounded-xl text-xs overflow-auto max-h-[50vh]"></div>
+
 <script>
+window.onerror = function(msg, url, line) {
+  const eb = document.getElementById('err-box');
+  if(eb) {
+    eb.classList.remove('hidden');
+    eb.innerHTML += `<b>Erreur:</b> ${msg} (ligne ${line})<br>`;
+  }
+};
+
 /* ===== CONFIG SUPABASE ===== */
 const SB_URL = 'https://bprsxfrscxmwqqohyzbb.supabase.co';
 const SB_KEY = 'sb_publishable_hh65k09ofnvS1_rkBaSRxw_I9d01qD8';
@@ -143,7 +154,8 @@ const CAT={usine:['🏭','Usine / industriel'],maison:['🏚️','Maison / manoi
 const ACC={facile:['🟢','Facile'],moyen:['🟠','Moyen'],difficile:['🔴','Difficile / escalade']};
 const DNG={faible:['#3fb950','Faible'],effondrement:['#f0883e','Risque d’effondrement'],gardien:['#d4a72c','Gardien / alarme'],amiante:['#a371f7','Amiante / gaz'],dangereux:['#f85149','Dangereux']};
 
-const sb=supabase.createClient(SB_URL, SB_KEY),$=s=>document.querySelector(s);
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
@@ -153,7 +165,7 @@ let adminRankOn=localStorage.getItem('admin_rank_on')!=='false';
 
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
+function toast(m){const t=$('#toast');if(!t)return;t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
 /* ===== Carte Vue Satellite Hybride ===== */
 const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
@@ -175,9 +187,10 @@ function render(){
       const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
       L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
     });
-    $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
+    if($('#cnt')) $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
     const p=spots.filter(s=>s.status!=='active').length;
-    $('#pb').classList.toggle('hidden',!(admin&&p));$('#pn').textContent=p;
+    if($('#pb')) $('#pb').classList.toggle('hidden',!(admin&&p));
+    if($('#pn')) $('#pn').textContent=p;
   } catch(e) {
     console.error('Erreur render:', e);
   }
@@ -185,6 +198,7 @@ function render(){
 
 async function load(){
   try {
+    if(!sb) { toast('Supabase non initialisé'); return; }
     const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
     if(error) {
       toast('Base inaccessible : '+error.message);
@@ -203,6 +217,7 @@ async function load(){
 
 async function loadUserData(){
   try {
+    if(!sb) return;
     const {data:{session}}=await sb.auth.getSession();
     currentUser=session?.user||null;
     if(currentUser){
@@ -218,12 +233,12 @@ async function loadUserData(){
       } else {
         userNotifications=[];
       }
-      $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
+      if($('#notif-dot')) $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
     } else {
       currentProfile=null;
       userFavorites.clear();
       userNotifications=[];
-      $('#notif-dot').classList.add('hidden');
+      if($('#notif-dot')) $('#notif-dot').classList.add('hidden');
     }
   } catch(e) {
     console.error('Erreur user data:', e);
@@ -468,8 +483,8 @@ async function renderAuthBox(){
     `;
     
     let isSignup=false;
-    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login').classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
-    $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup').classList.add('sel'); $('#tab-login').classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
+    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login'].classList.add('sel'); $('#tab-signup'].classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
+    $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup'].classList.add('sel'); $('#tab-login'].classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
     
     $('#auth-form').onsubmit=async e=>{
       e.preventDefault();
@@ -504,20 +519,21 @@ async function renderAuthBox(){
 /* ===== Filtres & recherche ===== */
 [['#fc',CAT,'c'],['#fd',DNG,'d'],['#fa',ACC,'a']].forEach(([id,o,k])=>{
   const el=$(id);
+  if(!el) return;
   el.innerHTML=Object.entries(o).map(([key,v])=>`<button type="button" data-k="${key}" class="chip on">${ic(v)}${v[1]}</button>`).join('');
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=flt[k];s.has(b.dataset.k)?s.delete(b.dataset.k):s.add(b.dataset.k);b.classList.toggle('on');render()};
 });
-$('#fr').onclick=()=>{[['c',CAT],['d',DNG],['a',ACC]].forEach(([k,o])=>flt[k]=new Set(Object.keys(o)));document.querySelectorAll('.chip').forEach(c=>c.classList.add('on'));render()};
-$('#fb').onclick=()=>$('#fp').classList.toggle('hidden');
+if($('#fr')) $('#fr').onclick=()=>{[['c',CAT],['d',DNG],['a',ACC]].forEach(([k,o])=>flt[k]=new Set(Object.keys(o)));document.querySelectorAll('.chip').forEach(c=>c.classList.add('on'));render()};
+if($('#fb')) $('#fb').onclick=()=>$('#fp').classList.toggle('hidden');
 async function geo(q){const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&accept-language=fr&q='+encodeURIComponent(q));return (await r.json())[0]}
-$('#sf').onsubmit=async e=>{
+if($('#sf')) $('#sf').onsubmit=async e=>{
   e.preventDefault();const q=$('#q').value.trim();if(!q)return;
   try{const g=await geo(q);if(!g)return toast('Lieu introuvable en France');const b=g.boundingbox;map.fitBounds([[b[0],b[2]],[b[1],b[3]]],{maxZoom:14});$('#fp').classList.add('hidden')}
   catch{toast('Recherche indisponible')}
 };
 
 /* ===== Fiche d’un lieu ===== */
-function closeSheet(){$('#sheet').classList.add('hidden');$('#fab').classList.remove('hidden');cur=null;history.replaceState(null,'',location.pathname+location.search)}
+function closeSheet(){const sh=$('#sheet');if(sh)sh.classList.add('hidden');const fab=$('#fab');if(fab)fab.classList.remove('hidden');cur=null;history.replaceState(null,'',location.pathname+location.search)}
 function openSpot(id,fly){
   const s=spots.find(x=>x.id===id);if(!s)return;
   cur=id;history.replaceState(null,'','#spot='+id);if(fly)map.setView([s.lat,s.lng],15);
@@ -653,7 +669,11 @@ function share(id){const u=location.origin+location.pathname+'#spot='+id;navigat
 
 /* ===== Ajout / modification ===== */
 const F=$('#f');
-F.elements.category.innerHTML=opts(CAT);F.elements.access.innerHTML=opts(ACC);F.elements.danger.innerHTML=opts(DNG);
+if(F) {
+  F.elements.category.innerHTML=opts(CAT);
+  F.elements.access.innerHTML=opts(ACC);
+  F.elements.danger.innerHTML=opts(DNG);
+}
 const showForm=on=>$('#modal').classList.toggle('hidden',!on);
 function setPos(la,ln){draft.lat=la;draft.lng=ln;$('#coord').textContent=la.toFixed(5)+', '+ln.toFixed(5);map.setView([la,ln],Math.max(map.getZoom(),15))}
 function openForm(s){
@@ -675,13 +695,16 @@ function startPlacing(){
   placing=true;showForm(false);closeSheet();$('#fp').classList.add('hidden');$('#hint').classList.remove('hidden');map.getContainer().style.cursor='crosshair';
 }
 function stopPlacing(){placing=false;$('#hint').classList.add('hidden');map.getContainer().style.cursor=''}
-$('#fab').onclick=startPlacing;$('#onmap').onclick=startPlacing;$('#mx').onclick=closeForm;
-$('#hf').onclick=()=>{stopPlacing();formOn?showForm(true):openForm({})};
-$('#hx').onclick=()=>{stopPlacing();formOn&&showForm(true)};
+if($('#fab')) $('#fab').onclick=startPlacing;
+if($('#onmap')) $('#onmap').onclick=startPlacing;
+if($('#mx')) $('#mx').onclick=closeForm;
+if($('#hf')) $('#hf').onclick=()=>{stopPlacing();formOn?showForm(true):openForm({})};
+if($('#hx')) $('#hx').onclick=()=>{stopPlacing();formOn&&showForm(true)};
 map.on('click',e=>{if(!placing)return;stopPlacing();if(formOn){setPos(e.latlng.lat,e.latlng.lng);showForm(true)}else openForm({lat:e.latlng.lat,lng:e.latlng.lng})});
-$('#geo').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>setPos(p.coords.latitude,p.coords.longitude),()=>toast('Position indisponible')):toast('Géolocalisation non supportée');
-$('#ag').onclick=async()=>{const q=$('#addr').value.trim();if(!q)return;try{const g=await geo(q);g?setPos(+g.lat,+g.lon):toast('Adresse introuvable')}catch{toast('Recherche indisponible')}};
-$('#addr').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#ag').click()}};
+if($('#geo')) $('#geo').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>setPos(p.coords.latitude,p.coords.longitude),()=>toast('Position indisponible')):toast('Géolocalisation non supportée');
+if($('#ag')) $('#ag').onclick=async()=>{const q=$('#addr').value.trim();if(!q)return;try{const g=await geo(q);g?setPos(+g.lat,+g.lon):toast('Adresse introuvable')}catch{toast('Recherche indisponible')}};
+if($('#addr')) $('#addr').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#ag').click()}};
+
 async function upload(files){
   const out=[];
   for(const f of files){
@@ -692,15 +715,18 @@ async function upload(files){
   }
   return out;
 }
-F.onsubmit=async e=>{
-  e.preventDefault();if(draft.lat==null)return toast('Définissez d’abord l’emplacement');
-  const b=F.querySelector('[type=submit]'),fd=Object.fromEntries(new FormData(F)),id=draft.id;b.disabled=true;
-  const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files'].files]);
-  const row={title:fd.title.trim(),category:fd.category,access:fd.access,danger:fd.danger,description:fd.description.trim(),photos:[...urls,...up],lat:draft.lat,lng:draft.lng, user_id: currentUser?.id || null};
-  const {error}=await(id?sb.from('spots').update(row).eq('id',id):sb.from('spots').insert(row));
-  b.disabled=false;if(error)return toast(error.message);
-  closeForm();await load();toast(id?'Lieu modifié':'Lieu ajouté, merci !');id&&openSpot(id,true);
-};
+
+if(F) {
+  F.onsubmit=async e=>{
+    e.preventDefault();if(draft.lat==null)return toast('Définissez d’abord l’emplacement');
+    const b=F.querySelector('[type=submit]'),fd=Object.fromEntries(new FormData(F)),id=draft.id;b.disabled=true;
+    const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files').files]);
+    const row={title:fd.title.trim(),category:fd.category,access:fd.access,danger:fd.danger,description:fd.description.trim(),photos:[...urls,...up],lat:draft.lat,lng:draft.lng, user_id: currentUser?.id || null};
+    const {error}=await(id?sb.from('spots').update(row).eq('id',id):sb.from('spots').insert(row));
+    b.disabled=false;if(error)return toast(error.message);
+    closeForm();await load();toast(id?'Lieu modifié':'Lieu ajouté, merci !');id&&openSpot(id,true);
+  };
+}
 
 /* ===== Administration ===== */
 const editSpot=id=>openForm(spots.find(x=>x.id===id));
@@ -715,7 +741,7 @@ async function delCom(c,id){await sb.from('comments').delete().eq('id',c);loadCo
 async function checkAdmin(s){
   try {
     await loadUserData();
-    if(s){
+    if(s && sb){
       const res = await sb.rpc('is_admin');
       admin = res && res.data === true;
     } else {
@@ -726,20 +752,26 @@ async function checkAdmin(s){
     admin = false;
     adminUserId = null;
   }
-  $('#ab').textContent = admin ? '🔓' : '🔒';
-  $('#admin-notif-btn').classList.toggle('hidden', !admin);
+  if($('#ab')) $('#ab').textContent = admin ? '🔓' : '🔒';
+  if($('#admin-notif-btn')) $('#admin-notif-btn').classList.toggle('hidden', !admin);
   render();
   if(cur) openSpot(cur);
 }
 
-sb.auth.onAuthStateChange((_e,s)=>setTimeout(()=>checkAdmin(s),0));
+if(sb) {
+  sb.auth.onAuthStateChange((_e,s)=>setTimeout(()=>checkAdmin(s),0));
+}
 
-$('#ab').onclick=async()=>{
-  if(admin)return sb.auth.signOut();
-  const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
-  const {error}=await sb.auth.signInWithPassword({email,password});if(error)toast('Connexion refusée');
-};
-$('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
+if($('#ab')) {
+  $('#ab').onclick=async()=>{
+    if(admin)return sb.auth.signOut();
+    const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
+    const {error}=await sb.auth.signInWithPassword({email,password});if(error)toast('Connexion refusée');
+  };
+}
+if($('#pb')) {
+  $('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
+}
 
 (async()=>{
   try {
