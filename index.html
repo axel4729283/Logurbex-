@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0c0e11">
-<title>Noexit Map</title>
+<title>Urbex France</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
@@ -146,6 +146,19 @@ const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Obj
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
+/* ===== Titre Admin (activable uniquement par l'administrateur) ===== */
+let adminIds=new Set();
+const ADMIN_RANK={name:'🛡️ Admin',color:'#ff4d6d',pct:100,label:'Titre administrateur actif'};
+const rankOf=(uid,n)=>adminIds.has(uid)?ADMIN_RANK:getRankProgress(n);
+const adminTitleBox=()=>{const on=adminIds.has(currentUser?.id);return `<div class="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 p-3"><div><div class="text-sm font-semibold">🛡️ Titre Admin</div><div class="text-xs text-zinc-400">Remplace mon grade partout</div></div><button class="btn !flex-none ${on?'sel':''}" onclick="toggleAdminTitle()">${on?'Activé':'Désactivé'}</button></div>`};
+async function toggleAdminTitle(){
+  if(!admin||!currentUser)return;
+  const on=!adminIds.has(currentUser.id);
+  const {error}=await sb.from('profiles').upsert({id:currentUser.id,username:currentProfile?.username||'Admin',admin_title:on});
+  if(error)return toast('Erreur : '+error.message);
+  await loadUserData();renderAuthBox();toast(on?'Titre Admin activé':'Titre Admin désactivé');
+}
+
 /* ===== Carte Vue Satellite Hybride ===== */
 const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
 L.control.zoom({position:'bottomleft'}).addTo(map);
@@ -180,6 +193,7 @@ async function loadUserData(){
   try {
     const {data:{session}}=await sb.auth.getSession();
     currentUser=session?.user||null;
+    const {data:at}=await sb.from('profiles').select('id').eq('admin_title',true);adminIds=new Set((at||[]).map(x=>x.id));
     if(currentUser){
       const {data:p}=await sb.from('profiles').select('*').eq('id',currentUser.id).maybeSingle();
       currentProfile=p;
@@ -266,7 +280,7 @@ async function openLeaderboard(){
   });
   const list=(profiles||[]).map(p=>{
     const count=counts[p.id]||0;
-    return {username:p.username||'Explorateur', count, rank:getRankProgress(count)};
+    return {username:p.username||'Explorateur', count, rank:rankOf(p.id,count)};
   }).sort((a,b)=>b.count-a.count);
 
   $('#lb-content').innerHTML=list.map((item,idx)=>{
@@ -299,7 +313,7 @@ async function renderAuthBox(){
   
   if(currentUser){
     const mySpots=spots.filter(s=>s.user_id===currentUser.id);
-    const prog=getRankProgress(mySpots.length);
+    const prog=rankOf(currentUser.id,mySpots.length);
     const scClass=prog.scintillate?'scintillating':'';
     
     authContent.innerHTML=`
@@ -332,6 +346,9 @@ async function renderAuthBox(){
             <button id="save-uname" class="btn !flex-none">Changer</button>
           </div>
         </div>
+
+        <!-- Titre Admin (visible uniquement par l'administrateur) -->
+        ${admin?adminTitleBox():''}
 
         <!-- Notifications / Activité sur mes spots -->
         <div>
@@ -537,7 +554,7 @@ async function loadCom(id){
     let rankHtml='';
     if(c.user_id){
       const count=spots.filter(s=>s.user_id===c.user_id).length;
-      const r=getRankProgress(count);
+      const r=rankOf(c.user_id,count);
       const scClass=r.scintillate?'scintillating':'';
       rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
     }
