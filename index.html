@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0c0e11">
-<title>Urbex France</title>
+<title>Noexit Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
 :root{--a:#ffb224;--ln:#2a2f38}
 html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none}
@@ -34,13 +34,6 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
   100% { opacity: 1; text-shadow: 0 0 6px #b000ff; filter: brightness(1); }
 }
 .scintillating { animation: scintil 1.2s infinite ease-in-out; }
-
-@keyframes redScintil {
-  0% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
-  50% { opacity: 0.6; text-shadow: 0 0 16px #ff4d4d; filter: brightness(1.4); }
-  100% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
-}
-.red-scintillating { animation: redScintil 1.2s infinite ease-in-out; }
 
 .gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
 .gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
@@ -134,18 +127,7 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 
 <div id="toast" class="hidden fixed z-[1300] left-1/2 -translate-x-1/2 bg-zinc-900 border border-zinc-700 rounded-full px-4 py-2 text-sm shadow-xl" style="top:calc(4.5rem + env(safe-area-inset-top))"></div>
 
-<!-- Div d'affichage des erreurs si plantage -->
-<div id="err-box" class="hidden fixed inset-x-4 top-20 z-[9999] bg-red-950/90 border border-red-500 text-red-200 p-4 rounded-xl text-xs overflow-auto max-h-[50vh]"></div>
-
 <script>
-window.onerror = function(msg, url, line) {
-  const eb = document.getElementById('err-box');
-  if(eb) {
-    eb.classList.remove('hidden');
-    eb.innerHTML += `<b>Erreur:</b> ${msg} (ligne ${line})<br>`;
-  }
-};
-
 /* ===== CONFIG SUPABASE ===== */
 const SB_URL = 'https://bprsxfrscxmwqqohyzbb.supabase.co';
 const SB_KEY = 'sb_publishable_hh65k09ofnvS1_rkBaSRxw_I9d01qD8';
@@ -154,18 +136,15 @@ const CAT={usine:['🏭','Usine / industriel'],maison:['🏚️','Maison / manoi
 const ACC={facile:['🟢','Facile'],moyen:['🟠','Moyen'],difficile:['🔴','Difficile / escalade']};
 const DNG={faible:['#3fb950','Faible'],effondrement:['#f0883e','Risque d’effondrement'],gardien:['#d4a72c','Gardien / alarme'],amiante:['#a371f7','Amiante / gaz'],dangereux:['#f85149','Dangereux']};
 
-const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
-const $=s=>document.querySelector(s);
+const sb=supabase.createClient(SB_URL, SB_KEY),$=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v[0][0]==='#'?'':v[0]+' '}${v[1]}</option>`).join('');
-let spots=[],admin=false,adminUserId=null,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
-let adminRankOn=localStorage.getItem('admin_rank_on')!=='false';
-
+let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
-function toast(m){const t=$('#toast');if(!t)return;t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
 /* ===== Carte Vue Satellite Hybride ===== */
 const map=L.map('map',{zoomControl:false}).setView([46.6,2.4],6);
@@ -180,44 +159,25 @@ L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
 const cl=L.markerClusterGroup({maxClusterRadius:45}).addTo(map);
 
 function render(){
-  try {
-    cl.clearLayers();let n=0;
-    spots.forEach(s=>{
-      if(!(flt.c.has(s.category)&&flt.d.has(s.danger)&&flt.a.has(s.access)))return;n++;
-      const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
-      L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
-    });
-    if($('#cnt')) $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
-    const p=spots.filter(s=>s.status!=='active').length;
-    if($('#pb')) $('#pb').classList.toggle('hidden',!(admin&&p));
-    if($('#pn')) $('#pn').textContent=p;
-  } catch(e) {
-    console.error('Erreur render:', e);
-  }
+  cl.clearLayers();let n=0;
+  spots.forEach(s=>{
+    if(!(flt.c.has(s.category)&&flt.d.has(s.danger)&&flt.a.has(s.access)))return;n++;
+    const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
+    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
+  });
+  $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
+  const p=spots.filter(s=>s.status!=='active').length;
+  $('#pb').classList.toggle('hidden',!(admin&&p));$('#pn').textContent=p;
 }
-
 async function load(){
-  try {
-    if(!sb) { toast('Supabase non initialisé'); return; }
-    const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
-    if(error) {
-      toast('Base inaccessible : '+error.message);
-      spots=[];
-    } else {
-      spots=data||[];
-    }
-    render();
-    await loadUserData();
-  } catch(e) {
-    console.error('Erreur load:', e);
-    spots=[];
-    render();
-  }
+  const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
+  if(error)return toast('Base inaccessible : '+error.message);
+  spots=data||[];render();
+  await loadUserData();
 }
 
 async function loadUserData(){
   try {
-    if(!sb) return;
     const {data:{session}}=await sb.auth.getSession();
     currentUser=session?.user||null;
     if(currentUser){
@@ -233,23 +193,20 @@ async function loadUserData(){
       } else {
         userNotifications=[];
       }
-      if($('#notif-dot')) $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
+      $('#notif-dot').classList.toggle('hidden', userNotifications.length === 0);
     } else {
       currentProfile=null;
       userFavorites.clear();
       userNotifications=[];
-      if($('#notif-dot')) $('#notif-dot').classList.add('hidden');
+      $('#notif-dot').classList.add('hidden');
     }
   } catch(e) {
     console.error('Erreur user data:', e);
   }
 }
 
-/* ===== Système de Niveaux & Badge Admin ===== */
-function getRankProgress(count, userId){
-  if(admin && userId && userId === adminUserId && adminRankOn){
-    return { name: '🛡️ Administrateur', color: '#ff0000', current: count, next: 50, pct: 100, label: 'Mode Admin Actif', scintillateRed: true };
-  }
+/* ===== Système de Niveaux (jusqu'à 50+ lieux) ===== */
+function getRankProgress(count){
   if(count >= 50){
     return { name: '⚡ Dieux des urbex', color: '#b000ff', current: count, next: 50, pct: 100, label: 'Niveau Maximum !', scintillate: true };
   } else if(count >= 35){
@@ -275,30 +232,26 @@ function getRankProgress(count, userId){
 
 /* ===== Notifications Administrateur ===== */
 async function openAdminNotifs(){
-  try {
-    const {data:profiles}=await sb.from('profiles').select('id, username');
-    const profileMap={};
-    (profiles||[]).forEach(p=>profileMap[p.id]=p.username||'Explorateur');
+  const {data:profiles}=await sb.from('profiles').select('id, username');
+  const profileMap={};
+  (profiles||[]).forEach(p=>profileMap[p.id]=p.username||'Explorateur');
 
-    $('#admin-notif-content').innerHTML=(spots||[]).map(s=>{
-      const author=s.user_id?(profileMap[s.user_id]||'Explorateur'):'Anonyme';
-      const date=new Date(s.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const cat=CAT[s.category]||CAT.autre;
-      return `
-        <div class="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition" onclick="closeAdminNotifs(); openSpot('${s.id}', true);">
-          <div class="space-y-1 min-w-0">
-            <div class="font-semibold text-sm truncate">${cat[0]} ${esc(s.title)}</div>
-            <div class="text-xs text-zinc-400">Ajouté par <b class="text-zinc-300">${esc(author)}</b> le ${date}</div>
-          </div>
-          <span class="btn !flex-none text-xs px-2.5 py-1">Voir ➔</span>
+  $('#admin-notif-content').innerHTML=(spots||[]).map(s=>{
+    const author=s.user_id?(profileMap[s.user_id]||'Explorateur'):'Anonyme';
+    const date=new Date(s.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const cat=CAT[s.category]||CAT.autre;
+    return `
+      <div class="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition" onclick="closeAdminNotifs(); openSpot('${s.id}', true);">
+        <div class="space-y-1 min-w-0">
+          <div class="font-semibold text-sm truncate">${cat[0]} ${esc(s.title)}</div>
+          <div class="text-xs text-zinc-400">Ajouté par <b class="text-zinc-300">${esc(author)}</b> le ${date}</div>
         </div>
-      `;
-    }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun lieu enregistré.</p>';
+        <span class="btn !flex-none text-xs px-2.5 py-1">Voir ➔</span>
+      </div>
+    `;
+  }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun lieu enregistré.</p>';
 
-    $('#admin-notif-modal').classList.remove('hidden');
-  } catch(e) {
-    console.error('Erreur notifs admin:', e);
-  }
+  $('#admin-notif-modal').classList.remove('hidden');
 }
 function closeAdminNotifs(){$('#admin-notif-modal').classList.add('hidden');}
 $('#admin-notif-btn').onclick=openAdminNotifs;
@@ -306,35 +259,31 @@ $('#admin-notif-close').onclick=closeAdminNotifs;
 
 /* ===== Fenêtre Classement (Leaderboard) ===== */
 async function openLeaderboard(){
-  try {
-    const {data:profiles}=await sb.from('profiles').select('id, username');
-    const counts={};
-    spots.forEach(s=>{
-      if(s.user_id) counts[s.user_id]=(counts[s.user_id]||0)+1;
-    });
-    const list=(profiles||[]).map(p=>{
-      const count=counts[p.id]||0;
-      return {username:p.username||'Explorateur', count, rank:getRankProgress(count, p.id)};
-    }).sort((a,b)=>b.count-a.count);
+  const {data:profiles}=await sb.from('profiles').select('id, username');
+  const counts={};
+  spots.forEach(s=>{
+    if(s.user_id) counts[s.user_id]=(counts[s.user_id]||0)+1;
+  });
+  const list=(profiles||[]).map(p=>{
+    const count=counts[p.id]||0;
+    return {username:p.username||'Explorateur', count, rank:getRankProgress(count)};
+  }).sort((a,b)=>b.count-a.count);
 
-    $('#lb-content').innerHTML=list.map((item,idx)=>{
-      const scClass=item.rank.scintillateRed?'red-scintillating':(item.rank.scintillate?'scintillating':'');
-      return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-        <div class="flex items-center gap-3">
-          <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
-          <div>
-            <div class="font-semibold text-sm">${esc(item.username)}</div>
-            <div class="text-xs ${scClass}" style="color:${item.rank.color}">${item.rank.name}</div>
-          </div>
+  $('#lb-content').innerHTML=list.map((item,idx)=>{
+    const scClass=item.rank.scintillate?'scintillating':'';
+    return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div class="flex items-center gap-3">
+        <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
+        <div>
+          <div class="font-semibold text-sm">${esc(item.username)}</div>
+          <div class="text-xs ${scClass}" style="color:${item.rank.color}">${item.rank.name}</div>
         </div>
-        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
-      </div>`;
-    }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
+      </div>
+      <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
+    </div>`;
+  }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
 
-    $('#lb-modal').classList.remove('hidden');
-  } catch(e) {
-    console.error('Erreur leaderboard:', e);
-  }
+  $('#lb-modal').classList.remove('hidden');
 }
 $('#lb-btn').onclick=openLeaderboard;
 $('#lb-close').onclick=()=>$('#lb-modal').classList.add('hidden');
@@ -350,8 +299,8 @@ async function renderAuthBox(){
   
   if(currentUser){
     const mySpots=spots.filter(s=>s.user_id===currentUser.id);
-    const prog=getRankProgress(mySpots.length, currentUser.id);
-    const scClass=prog.scintillateRed?'red-scintillating':(prog.scintillate?'scintillating':'');
+    const prog=getRankProgress(mySpots.length);
+    const scClass=prog.scintillate?'scintillating':'';
     
     authContent.innerHTML=`
       <div class="space-y-4">
@@ -374,17 +323,6 @@ async function renderAuthBox(){
             <div class="text-[11px] text-zinc-400 text-right">${prog.label}</div>
           </div>
         </div>
-
-        <!-- Option Badge Admin (Uniquement visible pour l'admin) -->
-        ${admin ? `
-          <div class="rounded-xl p-3 border border-red-500/30 bg-red-500/10 flex items-center justify-between">
-            <div>
-              <div class="font-semibold text-xs text-red-300">Badge Administrateur</div>
-              <div class="text-[11px] text-zinc-400">Afficher le badge rouge scintillant</div>
-            </div>
-            <button id="toggle-admin-rank-btn" class="btn !flex-none !py-1 text-xs !bg-red-500/20 !border-red-500/50 text-red-200">${adminRankOn ? 'Désactiver' : 'Activer'}</button>
-          </div>
-        ` : ''}
 
         <!-- Modifier Pseudo -->
         <div class="space-y-1">
@@ -430,26 +368,13 @@ async function renderAuthBox(){
       </div>
     `;
 
-    if(admin && $('#toggle-admin-rank-btn')){
-      $('#toggle-admin-rank-btn').onclick=()=>{
-        adminRankOn=!adminRankOn;
-        localStorage.setItem('admin_rank_on', adminRankOn);
-        renderAuthBox();
-        toast(adminRankOn ? 'Badge Administrateur activé !' : 'Badge Administrateur désactivé');
-      };
-    }
-
     $('#save-uname').onclick=async()=>{
-      try {
-        const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
-        const {error}=await sb.from('profiles').upsert({id: currentUser.id, username: nu});
-        if(error) return toast('Erreur : '+error.message);
-        toast('Pseudo mis à jour !');
-        await loadUserData();
-        renderAuthBox();
-      } catch(e) {
-        toast('Erreur de mise à jour du pseudo');
-      }
+      const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
+      const {error}=await sb.from('profiles').upsert({id: currentUser.id, username: nu});
+      if(error) return toast('Erreur : '+error.message);
+      toast('Pseudo mis à jour !');
+      await loadUserData();
+      renderAuthBox();
     };
 
     $('#logout-btn').onclick=async()=>{
@@ -483,34 +408,30 @@ async function renderAuthBox(){
     `;
     
     let isSignup=false;
-    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login'].classList.add('sel'); $('#tab-signup'].classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
-    $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup'].classList.add('sel'); $('#tab-login'].classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
+    $('#tab-login').onclick=()=>{isSignup=false; $('#tab-login').classList.add('sel'); $('#tab-signup').classList.remove('sel'); $('#signup-extra').classList.add('hidden'); $('#auth-submit').textContent='Se connecter';};
+    $('#tab-signup').onclick=()=>{isSignup=true; $('#tab-signup').classList.add('sel'); $('#tab-login').classList.remove('sel'); $('#signup-extra').classList.remove('hidden'); $('#auth-submit').textContent="S'inscrire";};
     
     $('#auth-form').onsubmit=async e=>{
       e.preventDefault();
-      try {
-        const email=$('#auth-email').value.trim();
-        const password=$('#auth-pass').value.trim();
-        const username=$('#auth-username')?.value.trim();
-        
-        if(isSignup){
-          if(!username) return toast('Veuillez choisir un pseudo obligatoire !');
-          const {error}=await sb.auth.signUp({
-            email, password, options:{ data:{ username } }
-          });
-          if(error) return toast(error.message);
-          toast('Compte créé avec succès !');
-        } else {
-          const {error}=await sb.auth.signInWithPassword({email,password});
-          if(error) return toast('Erreur : '+error.message);
-          toast('Connecté !');
-        }
-        await loadUserData();
-        toggleAuthModal(false);
-        if(cur) openSpot(cur);
-      } catch(err) {
-        toast('Erreur d’authentification');
+      const email=$('#auth-email').value.trim();
+      const password=$('#auth-pass').value.trim();
+      const username=$('#auth-username')?.value.trim();
+      
+      if(isSignup){
+        if(!username) return toast('Veuillez choisir un pseudo obligatoire !');
+        const {error}=await sb.auth.signUp({
+          email, password, options:{ data:{ username } }
+        });
+        if(error) return toast(error.message);
+        toast('Compte créé avec succès !');
+      } else {
+        const {error}=await sb.auth.signInWithPassword({email,password});
+        if(error) return toast('Erreur : '+error.message);
+        toast('Connecté !');
       }
+      await loadUserData();
+      toggleAuthModal(false);
+      if(cur) openSpot(cur);
     };
   }
   toggleAuthModal(true);
@@ -519,21 +440,20 @@ async function renderAuthBox(){
 /* ===== Filtres & recherche ===== */
 [['#fc',CAT,'c'],['#fd',DNG,'d'],['#fa',ACC,'a']].forEach(([id,o,k])=>{
   const el=$(id);
-  if(!el) return;
   el.innerHTML=Object.entries(o).map(([key,v])=>`<button type="button" data-k="${key}" class="chip on">${ic(v)}${v[1]}</button>`).join('');
   el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const s=flt[k];s.has(b.dataset.k)?s.delete(b.dataset.k):s.add(b.dataset.k);b.classList.toggle('on');render()};
 });
-if($('#fr')) $('#fr').onclick=()=>{[['c',CAT],['d',DNG],['a',ACC]].forEach(([k,o])=>flt[k]=new Set(Object.keys(o)));document.querySelectorAll('.chip').forEach(c=>c.classList.add('on'));render()};
-if($('#fb')) $('#fb').onclick=()=>$('#fp').classList.toggle('hidden');
+$('#fr').onclick=()=>{[['c',CAT],['d',DNG],['a',ACC]].forEach(([k,o])=>flt[k]=new Set(Object.keys(o)));document.querySelectorAll('.chip').forEach(c=>c.classList.add('on'));render()};
+$('#fb').onclick=()=>$('#fp').classList.toggle('hidden');
 async function geo(q){const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&accept-language=fr&q='+encodeURIComponent(q));return (await r.json())[0]}
-if($('#sf')) $('#sf').onsubmit=async e=>{
+$('#sf').onsubmit=async e=>{
   e.preventDefault();const q=$('#q').value.trim();if(!q)return;
   try{const g=await geo(q);if(!g)return toast('Lieu introuvable en France');const b=g.boundingbox;map.fitBounds([[b[0],b[2]],[b[1],b[3]]],{maxZoom:14});$('#fp').classList.add('hidden')}
   catch{toast('Recherche indisponible')}
 };
 
 /* ===== Fiche d’un lieu ===== */
-function closeSheet(){const sh=$('#sheet');if(sh)sh.classList.add('hidden');const fab=$('#fab');if(fab)fab.classList.remove('hidden');cur=null;history.replaceState(null,'',location.pathname+location.search)}
+function closeSheet(){$('#sheet').classList.add('hidden');$('#fab').classList.remove('hidden');cur=null;history.replaceState(null,'',location.pathname+location.search)}
 function openSpot(id,fly){
   const s=spots.find(x=>x.id===id);if(!s)return;
   cur=id;history.replaceState(null,'','#spot='+id);if(fly)map.setView([s.lat,s.lng],15);
@@ -597,83 +517,63 @@ function openSpot(id,fly){
 }
 
 async function toggleFav(id){
-  try {
-    if(!currentUser) return toast('Connectez-vous pour sauvegarder en favori');
-    if(userFavorites.has(id)){
-      await sb.from('favorites').delete().eq('user_id',currentUser.id).eq('spot_id',id);
-      userFavorites.delete(id);
-      toast('Retiré des favoris');
-    } else {
-      await sb.from('favorites').insert({user_id:currentUser.id, spot_id:id});
-      userFavorites.add(id);
-      toast('Ajouté aux favoris !');
-    }
-    openSpot(id);
-  } catch(e) {
-    toast('Erreur favoris');
+  if(!currentUser) return toast('Connectez-vous pour sauvegarder en favori');
+  if(userFavorites.has(id)){
+    await sb.from('favorites').delete().eq('user_id',currentUser.id).eq('spot_id',id);
+    userFavorites.delete(id);
+    toast('Retiré des favoris');
+  } else {
+    await sb.from('favorites').insert({user_id:currentUser.id, spot_id:id});
+    userFavorites.add(id);
+    toast('Ajouté aux favoris !');
   }
+  openSpot(id);
 }
 
 async function loadCom(id){
-  try {
-    const {data}=await sb.from('comments').select('*').eq('spot_id',id).order('created_at',{ascending:false});
-    const el=$('#cm');if(!el)return;
-    el.innerHTML=(data||[]).map(c=>{
-      let rankHtml='';
-      if(c.user_id){
-        const count=spots.filter(s=>s.user_id===c.user_id).length;
-        const r=getRankProgress(count, c.user_id);
-        const scClass=r.scintillateRed?'red-scintillating':(r.scintillate?'scintillating':'');
-        rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
-      }
-      return `<div class="rounded-lg bg-zinc-900 p-2">
-        <div class="text-xs text-zinc-500 flex justify-between items-center">
-          <div><span class="font-semibold text-zinc-300">${esc(c.author)}</span> ${rankHtml} <span class="text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></div>
-          ${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}
-        </div>
-        <p class="mt-1">${esc(c.body)}</p>
-      </div>`;
-    }).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
-  } catch(e) {
-    console.error('Erreur loadCom:', e);
-  }
+  const {data}=await sb.from('comments').select('*').eq('spot_id',id).order('created_at',{ascending:false});
+  const el=$('#cm');if(!el)return;
+  el.innerHTML=(data||[]).map(c=>{
+    let rankHtml='';
+    if(c.user_id){
+      const count=spots.filter(s=>s.user_id===c.user_id).length;
+      const r=getRankProgress(count);
+      const scClass=r.scintillate?'scintillating':'';
+      rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
+    }
+    return `<div class="rounded-lg bg-zinc-900 p-2">
+      <div class="text-xs text-zinc-500 flex justify-between items-center">
+        <div><span class="font-semibold text-zinc-300">${esc(c.author)}</span> ${rankHtml} <span class="text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></div>
+        ${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}
+      </div>
+      <p class="mt-1">${esc(c.body)}</p>
+    </div>`;
+  }).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
 }
 
 async function addCom(id){
-  try {
-    if(!currentUser) return toast('Connexion requise');
-    const body=$('#cbody').value.trim();if(!body)return;
-    const author=currentProfile?.username || 'Explorateur';
-    const {error}=await sb.from('comments').insert({spot_id:id, author, body, user_id: currentUser.id});
-    if(error)return toast(error.message);
-    loadCom(id);$('#cbody').value='';
-  } catch(e) {
-    toast('Erreur d’envoi du commentaire');
-  }
+  if(!currentUser) return toast('Connexion requise');
+  const body=$('#cbody').value.trim();if(!body)return;
+  const author=currentProfile?.username || 'Explorateur';
+  const {error}=await sb.from('comments').insert({spot_id:id, author, body, user_id: currentUser.id});
+  if(error)return toast(error.message);
+  loadCom(id);$('#cbody').value='';
 }
 
 async function vote(id,yes){
-  try {
-    if(!currentUser) return toast('Connectez-vous pour signaler un lieu');
-    const {error}=await sb.rpc('vote',{p_spot:id,p_voter:voter,p_still:yes});
-    if(error)return toast(error.message);
-    localStorage['v_'+id]=yes?'1':'0';
-    toast('Merci pour votre vote !');
-    await load();openSpot(id);
-  } catch(e) {
-    toast('Erreur de vote');
-  }
+  if(!currentUser) return toast('Connectez-vous pour signaler un lieu');
+  const {error}=await sb.rpc('vote',{p_spot:id,p_voter:voter,p_still:yes});
+  if(error)return toast(error.message);
+  localStorage['v_'+id]=yes?'1':'0';
+  toast('Merci pour votre vote !');
+  await load();openSpot(id);
 }
 
 function share(id){const u=location.origin+location.pathname+'#spot='+id;navigator.share?navigator.share({title:'Urbex France',url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('Lien copié'))}
 
 /* ===== Ajout / modification ===== */
 const F=$('#f');
-if(F) {
-  F.elements.category.innerHTML=opts(CAT);
-  F.elements.access.innerHTML=opts(ACC);
-  F.elements.danger.innerHTML=opts(DNG);
-}
+F.elements.category.innerHTML=opts(CAT);F.elements.access.innerHTML=opts(ACC);F.elements.danger.innerHTML=opts(DNG);
 const showForm=on=>$('#modal').classList.toggle('hidden',!on);
 function setPos(la,ln){draft.lat=la;draft.lng=ln;$('#coord').textContent=la.toFixed(5)+', '+ln.toFixed(5);map.setView([la,ln],Math.max(map.getZoom(),15))}
 function openForm(s){
@@ -695,16 +595,13 @@ function startPlacing(){
   placing=true;showForm(false);closeSheet();$('#fp').classList.add('hidden');$('#hint').classList.remove('hidden');map.getContainer().style.cursor='crosshair';
 }
 function stopPlacing(){placing=false;$('#hint').classList.add('hidden');map.getContainer().style.cursor=''}
-if($('#fab')) $('#fab').onclick=startPlacing;
-if($('#onmap')) $('#onmap').onclick=startPlacing;
-if($('#mx')) $('#mx').onclick=closeForm;
-if($('#hf')) $('#hf').onclick=()=>{stopPlacing();formOn?showForm(true):openForm({})};
-if($('#hx')) $('#hx').onclick=()=>{stopPlacing();formOn&&showForm(true)};
+$('#fab').onclick=startPlacing;$('#onmap').onclick=startPlacing;$('#mx').onclick=closeForm;
+$('#hf').onclick=()=>{stopPlacing();formOn?showForm(true):openForm({})};
+$('#hx').onclick=()=>{stopPlacing();formOn&&showForm(true)};
 map.on('click',e=>{if(!placing)return;stopPlacing();if(formOn){setPos(e.latlng.lat,e.latlng.lng);showForm(true)}else openForm({lat:e.latlng.lat,lng:e.latlng.lng})});
-if($('#geo')) $('#geo').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>setPos(p.coords.latitude,p.coords.longitude),()=>toast('Position indisponible')):toast('Géolocalisation non supportée');
-if($('#ag')) $('#ag').onclick=async()=>{const q=$('#addr').value.trim();if(!q)return;try{const g=await geo(q);g?setPos(+g.lat,+g.lon):toast('Adresse introuvable')}catch{toast('Recherche indisponible')}};
-if($('#addr')) $('#addr').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#ag').click()}};
-
+$('#geo').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>setPos(p.coords.latitude,p.coords.longitude),()=>toast('Position indisponible')):toast('Géolocalisation non supportée');
+$('#ag').onclick=async()=>{const q=$('#addr').value.trim();if(!q)return;try{const g=await geo(q);g?setPos(+g.lat,+g.lon):toast('Adresse introuvable')}catch{toast('Recherche indisponible')}};
+$('#addr').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#ag').click()}};
 async function upload(files){
   const out=[];
   for(const f of files){
@@ -715,18 +612,15 @@ async function upload(files){
   }
   return out;
 }
-
-if(F) {
-  F.onsubmit=async e=>{
-    e.preventDefault();if(draft.lat==null)return toast('Définissez d’abord l’emplacement');
-    const b=F.querySelector('[type=submit]'),fd=Object.fromEntries(new FormData(F)),id=draft.id;b.disabled=true;
-    const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files').files]);
-    const row={title:fd.title.trim(),category:fd.category,access:fd.access,danger:fd.danger,description:fd.description.trim(),photos:[...urls,...up],lat:draft.lat,lng:draft.lng, user_id: currentUser?.id || null};
-    const {error}=await(id?sb.from('spots').update(row).eq('id',id):sb.from('spots').insert(row));
-    b.disabled=false;if(error)return toast(error.message);
-    closeForm();await load();toast(id?'Lieu modifié':'Lieu ajouté, merci !');id&&openSpot(id,true);
-  };
-}
+F.onsubmit=async e=>{
+  e.preventDefault();if(draft.lat==null)return toast('Définissez d’abord l’emplacement');
+  const b=F.querySelector('[type=submit]'),fd=Object.fromEntries(new FormData(F)),id=draft.id;b.disabled=true;
+  const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files').files]);
+  const row={title:fd.title.trim(),category:fd.category,access:fd.access,danger:fd.danger,description:fd.description.trim(),photos:[...urls,...up],lat:draft.lat,lng:draft.lng, user_id: currentUser?.id || null};
+  const {error}=await(id?sb.from('spots').update(row).eq('id',id):sb.from('spots').insert(row));
+  b.disabled=false;if(error)return toast(error.message);
+  closeForm();await load();toast(id?'Lieu modifié':'Lieu ajouté, merci !');id&&openSpot(id,true);
+};
 
 /* ===== Administration ===== */
 const editSpot=id=>openForm(spots.find(x=>x.id===id));
@@ -737,51 +631,22 @@ async function keepSpot(id){
   if(error)return toast(error.message);await load();openSpot(id);toast('Alerte levée')
 }
 async function delCom(c,id){await sb.from('comments').delete().eq('id',c);loadCom(id)}
-
 async function checkAdmin(s){
-  try {
-    await loadUserData();
-    if(s && sb){
-      const res = await sb.rpc('is_admin');
-      admin = res && res.data === true;
-    } else {
-      admin = false;
-    }
-    adminUserId = admin ? currentUser?.id : null;
-  } catch(e) {
-    admin = false;
-    adminUserId = null;
-  }
-  if($('#ab')) $('#ab').textContent = admin ? '🔓' : '🔒';
-  if($('#admin-notif-btn')) $('#admin-notif-btn').classList.toggle('hidden', !admin);
-  render();
-  if(cur) openSpot(cur);
+  await loadUserData();
+  admin=!!s&&(await sb.rpc('is_admin')).data===true;
+  $('#ab').textContent=admin?'🔓':'🔒';
+  $('#admin-notif-btn').classList.toggle('hidden', !admin);
+  render();cur&&openSpot(cur);
 }
+sb.auth.onAuthStateChange((_e,s)=>setTimeout(()=>checkAdmin(s),0));
+$('#ab').onclick=async()=>{
+  if(admin)return sb.auth.signOut();
+  const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
+  const {error}=await sb.auth.signInWithPassword({email,password});if(error)toast('Connexion refusée');
+};
+$('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
 
-if(sb) {
-  sb.auth.onAuthStateChange((_e,s)=>setTimeout(()=>checkAdmin(s),0));
-}
-
-if($('#ab')) {
-  $('#ab').onclick=async()=>{
-    if(admin)return sb.auth.signOut();
-    const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
-    const {error}=await sb.auth.signInWithPassword({email,password});if(error)toast('Connexion refusée');
-  };
-}
-if($('#pb')) {
-  $('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
-}
-
-(async()=>{
-  try {
-    await load();
-    const m=location.hash.match(/spot=([\w-]+)/);
-    if(m) openSpot(m[1],true);
-  } catch(e) {
-    console.error('Erreur init:', e);
-  }
-})();
+(async()=>{await load();const m=location.hash.match(/spot=([\w-]+)/);m&&openSpot(m[1],true)})();
 </script>
 </body>
 </html>
