@@ -168,21 +168,37 @@ L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
 const cl=L.markerClusterGroup({maxClusterRadius:45}).addTo(map);
 
 function render(){
-  cl.clearLayers();let n=0;
-  spots.forEach(s=>{
-    if(!(flt.c.has(s.category)&&flt.d.has(s.danger)&&flt.a.has(s.access)))return;n++;
-    const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
-    L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
-  });
-  $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
-  const p=spots.filter(s=>s.status!=='active').length;
-  $('#pb').classList.toggle('hidden',!(admin&&p));$('#pn').textContent=p;
+  try {
+    cl.clearLayers();let n=0;
+    spots.forEach(s=>{
+      if(!(flt.c.has(s.category)&&flt.d.has(s.danger)&&flt.a.has(s.access)))return;n++;
+      const col=(DNG[s.danger]||DNG.faible)[0],e=(CAT[s.category]||CAT.autre)[0];
+      L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',iconSize:[34,34],iconAnchor:[17,40],html:`<div class="pin ${s.status==='active'?'':'pend'}" style="background:${col}"><span>${e}</span></div>`})}).on('click',()=>openSpot(s.id)).addTo(cl);
+    });
+    $('#cnt').textContent=n+' / '+spots.length+' lieux affichés';
+    const p=spots.filter(s=>s.status!=='active').length;
+    $('#pb').classList.toggle('hidden',!(admin&&p));$('#pn').textContent=p;
+  } catch(e) {
+    console.error('Erreur render:', e);
+  }
 }
+
 async function load(){
-  const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
-  if(error)return toast('Base inaccessible : '+error.message);
-  spots=data||[];render();
-  await loadUserData();
+  try {
+    const {data,error}=await sb.from('spots').select('*').order('created_at',{ascending:false});
+    if(error) {
+      toast('Base inaccessible : '+error.message);
+      spots=[];
+    } else {
+      spots=data||[];
+    }
+    render();
+    await loadUserData();
+  } catch(e) {
+    console.error('Erreur load:', e);
+    spots=[];
+    render();
+  }
 }
 
 async function loadUserData(){
@@ -244,26 +260,30 @@ function getRankProgress(count, userId){
 
 /* ===== Notifications Administrateur ===== */
 async function openAdminNotifs(){
-  const {data:profiles}=await sb.from('profiles').select('id, username');
-  const profileMap={};
-  (profiles||[]).forEach(p=>profileMap[p.id]=p.username||'Explorateur');
+  try {
+    const {data:profiles}=await sb.from('profiles').select('id, username');
+    const profileMap={};
+    (profiles||[]).forEach(p=>profileMap[p.id]=p.username||'Explorateur');
 
-  $('#admin-notif-content').innerHTML=(spots||[]).map(s=>{
-    const author=s.user_id?(profileMap[s.user_id]||'Explorateur'):'Anonyme';
-    const date=new Date(s.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    const cat=CAT[s.category]||CAT.autre;
-    return `
-      <div class="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition" onclick="closeAdminNotifs(); openSpot('${s.id}', true);">
-        <div class="space-y-1 min-w-0">
-          <div class="font-semibold text-sm truncate">${cat[0]} ${esc(s.title)}</div>
-          <div class="text-xs text-zinc-400">Ajouté par <b class="text-zinc-300">${esc(author)}</b> le ${date}</div>
+    $('#admin-notif-content').innerHTML=(spots||[]).map(s=>{
+      const author=s.user_id?(profileMap[s.user_id]||'Explorateur'):'Anonyme';
+      const date=new Date(s.created_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const cat=CAT[s.category]||CAT.autre;
+      return `
+        <div class="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2 cursor-pointer hover:border-amber-500/50 transition" onclick="closeAdminNotifs(); openSpot('${s.id}', true);">
+          <div class="space-y-1 min-w-0">
+            <div class="font-semibold text-sm truncate">${cat[0]} ${esc(s.title)}</div>
+            <div class="text-xs text-zinc-400">Ajouté par <b class="text-zinc-300">${esc(author)}</b> le ${date}</div>
+          </div>
+          <span class="btn !flex-none text-xs px-2.5 py-1">Voir ➔</span>
         </div>
-        <span class="btn !flex-none text-xs px-2.5 py-1">Voir ➔</span>
-      </div>
-    `;
-  }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun lieu enregistré.</p>';
+      `;
+    }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun lieu enregistré.</p>';
 
-  $('#admin-notif-modal').classList.remove('hidden');
+    $('#admin-notif-modal').classList.remove('hidden');
+  } catch(e) {
+    console.error('Erreur notifs admin:', e);
+  }
 }
 function closeAdminNotifs(){$('#admin-notif-modal').classList.add('hidden');}
 $('#admin-notif-btn').onclick=openAdminNotifs;
@@ -271,31 +291,35 @@ $('#admin-notif-close').onclick=closeAdminNotifs;
 
 /* ===== Fenêtre Classement (Leaderboard) ===== */
 async function openLeaderboard(){
-  const {data:profiles}=await sb.from('profiles').select('id, username');
-  const counts={};
-  spots.forEach(s=>{
-    if(s.user_id) counts[s.user_id]=(counts[s.user_id]||0)+1;
-  });
-  const list=(profiles||[]).map(p=>{
-    const count=counts[p.id]||0;
-    return {username:p.username||'Explorateur', count, rank:getRankProgress(count, p.id)};
-  }).sort((a,b)=>b.count-a.count);
+  try {
+    const {data:profiles}=await sb.from('profiles').select('id, username');
+    const counts={};
+    spots.forEach(s=>{
+      if(s.user_id) counts[s.user_id]=(counts[s.user_id]||0)+1;
+    });
+    const list=(profiles||[]).map(p=>{
+      const count=counts[p.id]||0;
+      return {username:p.username||'Explorateur', count, rank:getRankProgress(count, p.id)};
+    }).sort((a,b)=>b.count-a.count);
 
-  $('#lb-content').innerHTML=list.map((item,idx)=>{
-    const scClass=item.rank.scintillateRed?'red-scintillating':(item.rank.scintillate?'scintillating':'');
-    return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-      <div class="flex items-center gap-3">
-        <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
-        <div>
-          <div class="font-semibold text-sm">${esc(item.username)}</div>
-          <div class="text-xs ${scClass}" style="color:${item.rank.color}">${item.rank.name}</div>
+    $('#lb-content').innerHTML=list.map((item,idx)=>{
+      const scClass=item.rank.scintillateRed?'red-scintillating':(item.rank.scintillate?'scintillating':'');
+      return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+        <div class="flex items-center gap-3">
+          <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
+          <div>
+            <div class="font-semibold text-sm">${esc(item.username)}</div>
+            <div class="text-xs ${scClass}" style="color:${item.rank.color}">${item.rank.name}</div>
+          </div>
         </div>
-      </div>
-      <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
-    </div>`;
-  }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300">${item.count} spot(s)</span>
+      </div>`;
+    }).join('')||'<p class="text-zinc-500 text-center py-4">Aucun explorateur classé pour le moment.</p>';
 
-  $('#lb-modal').classList.remove('hidden');
+    $('#lb-modal').classList.remove('hidden');
+  } catch(e) {
+    console.error('Erreur leaderboard:', e);
+  }
 }
 $('#lb-btn').onclick=openLeaderboard;
 $('#lb-close').onclick=()=>$('#lb-modal').classList.add('hidden');
@@ -401,12 +425,16 @@ async function renderAuthBox(){
     }
 
     $('#save-uname').onclick=async()=>{
-      const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
-      const {error}=await sb.from('profiles').upsert({id: currentUser.id, username: nu});
-      if(error) return toast('Erreur : '+error.message);
-      toast('Pseudo mis à jour !');
-      await loadUserData();
-      renderAuthBox();
+      try {
+        const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
+        const {error}=await sb.from('profiles').upsert({id: currentUser.id, username: nu});
+        if(error) return toast('Erreur : '+error.message);
+        toast('Pseudo mis à jour !');
+        await loadUserData();
+        renderAuthBox();
+      } catch(e) {
+        toast('Erreur de mise à jour du pseudo');
+      }
     };
 
     $('#logout-btn').onclick=async()=>{
@@ -445,25 +473,29 @@ async function renderAuthBox(){
     
     $('#auth-form').onsubmit=async e=>{
       e.preventDefault();
-      const email=$('#auth-email').value.trim();
-      const password=$('#auth-pass').value.trim();
-      const username=$('#auth-username')?.value.trim();
-      
-      if(isSignup){
-        if(!username) return toast('Veuillez choisir un pseudo obligatoire !');
-        const {error}=await sb.auth.signUp({
-          email, password, options:{ data:{ username } }
-        });
-        if(error) return toast(error.message);
-        toast('Compte créé avec succès !');
-      } else {
-        const {error}=await sb.auth.signInWithPassword({email,password});
-        if(error) return toast('Erreur : '+error.message);
-        toast('Connecté !');
+      try {
+        const email=$('#auth-email').value.trim();
+        const password=$('#auth-pass').value.trim();
+        const username=$('#auth-username')?.value.trim();
+        
+        if(isSignup){
+          if(!username) return toast('Veuillez choisir un pseudo obligatoire !');
+          const {error}=await sb.auth.signUp({
+            email, password, options:{ data:{ username } }
+          });
+          if(error) return toast(error.message);
+          toast('Compte créé avec succès !');
+        } else {
+          const {error}=await sb.auth.signInWithPassword({email,password});
+          if(error) return toast('Erreur : '+error.message);
+          toast('Connecté !');
+        }
+        await loadUserData();
+        toggleAuthModal(false);
+        if(cur) openSpot(cur);
+      } catch(err) {
+        toast('Erreur d’authentification');
       }
-      await loadUserData();
-      toggleAuthModal(false);
-      if(cur) openSpot(cur);
     };
   }
   toggleAuthModal(true);
@@ -549,56 +581,72 @@ function openSpot(id,fly){
 }
 
 async function toggleFav(id){
-  if(!currentUser) return toast('Connectez-vous pour sauvegarder en favori');
-  if(userFavorites.has(id)){
-    await sb.from('favorites').delete().eq('user_id',currentUser.id).eq('spot_id',id);
-    userFavorites.delete(id);
-    toast('Retiré des favoris');
-  } else {
-    await sb.from('favorites').insert({user_id:currentUser.id, spot_id:id});
-    userFavorites.add(id);
-    toast('Ajouté aux favoris !');
+  try {
+    if(!currentUser) return toast('Connectez-vous pour sauvegarder en favori');
+    if(userFavorites.has(id)){
+      await sb.from('favorites').delete().eq('user_id',currentUser.id).eq('spot_id',id);
+      userFavorites.delete(id);
+      toast('Retiré des favoris');
+    } else {
+      await sb.from('favorites').insert({user_id:currentUser.id, spot_id:id});
+      userFavorites.add(id);
+      toast('Ajouté aux favoris !');
+    }
+    openSpot(id);
+  } catch(e) {
+    toast('Erreur favoris');
   }
-  openSpot(id);
 }
 
 async function loadCom(id){
-  const {data}=await sb.from('comments').select('*').eq('spot_id',id).order('created_at',{ascending:false});
-  const el=$('#cm');if(!el)return;
-  el.innerHTML=(data||[]).map(c=>{
-    let rankHtml='';
-    if(c.user_id){
-      const count=spots.filter(s=>s.user_id===c.user_id).length;
-      const r=getRankProgress(count, c.user_id);
-      const scClass=r.scintillateRed?'red-scintillating':(r.scintillate?'scintillating':'');
-      rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
-    }
-    return `<div class="rounded-lg bg-zinc-900 p-2">
-      <div class="text-xs text-zinc-500 flex justify-between items-center">
-        <div><span class="font-semibold text-zinc-300">${esc(c.author)}</span> ${rankHtml} <span class="text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></div>
-        ${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}
-      </div>
-      <p class="mt-1">${esc(c.body)}</p>
-    </div>`;
-  }).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
+  try {
+    const {data}=await sb.from('comments').select('*').eq('spot_id',id).order('created_at',{ascending:false});
+    const el=$('#cm');if(!el)return;
+    el.innerHTML=(data||[]).map(c=>{
+      let rankHtml='';
+      if(c.user_id){
+        const count=spots.filter(s=>s.user_id===c.user_id).length;
+        const r=getRankProgress(count, c.user_id);
+        const scClass=r.scintillateRed?'red-scintillating':(r.scintillate?'scintillating':'');
+        rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
+      }
+      return `<div class="rounded-lg bg-zinc-900 p-2">
+        <div class="text-xs text-zinc-500 flex justify-between items-center">
+          <div><span class="font-semibold text-zinc-300">${esc(c.author)}</span> ${rankHtml} <span class="text-zinc-500">· ${new Date(c.created_at).toLocaleDateString('fr-FR')}</span></div>
+          ${admin?`<button onclick="delCom('${c.id}','${id}')" aria-label="Supprimer">✕</button>`:''}
+        </div>
+        <p class="mt-1">${esc(c.body)}</p>
+      </div>`;
+    }).join('')||'<p class="text-zinc-500">Aucun commentaire. Soyez le premier à donner un conseil d’accès !</p>';
+  } catch(e) {
+    console.error('Erreur loadCom:', e);
+  }
 }
 
 async function addCom(id){
-  if(!currentUser) return toast('Connexion requise');
-  const body=$('#cbody').value.trim();if(!body)return;
-  const author=currentProfile?.username || 'Explorateur';
-  const {error}=await sb.from('comments').insert({spot_id:id, author, body, user_id: currentUser.id});
-  if(error)return toast(error.message);
-  loadCom(id);$('#cbody').value='';
+  try {
+    if(!currentUser) return toast('Connexion requise');
+    const body=$('#cbody').value.trim();if(!body)return;
+    const author=currentProfile?.username || 'Explorateur';
+    const {error}=await sb.from('comments').insert({spot_id:id, author, body, user_id: currentUser.id});
+    if(error)return toast(error.message);
+    loadCom(id);$('#cbody').value='';
+  } catch(e) {
+    toast('Erreur d’envoi du commentaire');
+  }
 }
 
 async function vote(id,yes){
-  if(!currentUser) return toast('Connectez-vous pour signaler un lieu');
-  const {error}=await sb.rpc('vote',{p_spot:id,p_voter:voter,p_still:yes});
-  if(error)return toast(error.message);
-  localStorage['v_'+id]=yes?'1':'0';
-  toast('Merci pour votre vote !');
-  await load();openSpot(id);
+  try {
+    if(!currentUser) return toast('Connectez-vous pour signaler un lieu');
+    const {error}=await sb.rpc('vote',{p_spot:id,p_voter:voter,p_still:yes});
+    if(error)return toast(error.message);
+    localStorage['v_'+id]=yes?'1':'0';
+    toast('Merci pour votre vote !');
+    await load();openSpot(id);
+  } catch(e) {
+    toast('Erreur de vote');
+  }
 }
 
 function share(id){const u=location.origin+location.pathname+'#spot='+id;navigator.share?navigator.share({title:'Urbex France',url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('Lien copié'))}
@@ -663,15 +711,29 @@ async function keepSpot(id){
   if(error)return toast(error.message);await load();openSpot(id);toast('Alerte levée')
 }
 async function delCom(c,id){await sb.from('comments').delete().eq('id',c);loadCom(id)}
+
 async function checkAdmin(s){
-  await loadUserData();
-  admin=!!s&&(await sb.rpc('is_admin')).data===true;
-  adminUserId=admin?currentUser?.id:null;
-  $('#ab').textContent=admin?'🔓':'🔒';
+  try {
+    await loadUserData();
+    if(s){
+      const res = await sb.rpc('is_admin');
+      admin = res && res.data === true;
+    } else {
+      admin = false;
+    }
+    adminUserId = admin ? currentUser?.id : null;
+  } catch(e) {
+    admin = false;
+    adminUserId = null;
+  }
+  $('#ab').textContent = admin ? '🔓' : '🔒';
   $('#admin-notif-btn').classList.toggle('hidden', !admin);
-  render();cur&&openSpot(cur);
+  render();
+  if(cur) openSpot(cur);
 }
+
 sb.auth.onAuthStateChange((_e,s)=>setTimeout(()=>checkAdmin(s),0));
+
 $('#ab').onclick=async()=>{
   if(admin)return sb.auth.signOut();
   const email=prompt('E-mail administrateur');if(!email)return;const password=prompt('Mot de passe');if(!password)return;
@@ -679,7 +741,15 @@ $('#ab').onclick=async()=>{
 };
 $('#pb').onclick=()=>{const p=spots.filter(s=>s.status!=='active');if(p.length>0)openSpot(p[pi++%p.length].id,true)};
 
-(async()=>{await load();const m=location.hash.match(/spot=([\w-]+)/);m&&openSpot(m[1],true)})();
+(async()=>{
+  try {
+    await load();
+    const m=location.hash.match(/spot=([\w-]+)/);
+    if(m) openSpot(m[1],true);
+  } catch(e) {
+    console.error('Erreur init:', e);
+  }
+})();
 </script>
 </body>
 </html>
