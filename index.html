@@ -35,6 +35,13 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 }
 .scintillating { animation: scintil 1.2s infinite ease-in-out; }
 
+@keyframes redScintil {
+  0% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
+  50% { opacity: 0.6; text-shadow: 0 0 16px #ff4d4d; filter: brightness(1.4); }
+  100% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
+}
+.red-scintillating { animation: redScintil 1.2s infinite ease-in-out; }
+
 .gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
 .gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
 </style>
@@ -142,21 +149,21 @@ const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v[0][0]==='#'?'':v[0]+' '}${v[1]}</option>`).join('');
 let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
+let adminRankOn=localStorage.getItem('admin_rank_on')==='true';
+
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
 
-/* ===== Titre Admin (activable uniquement par l'administrateur) ===== */
-let adminIds=new Set();
-const ADMIN_RANK={name:'🛡️ Admin',color:'#ff4d6d',pct:100,label:'Titre administrateur actif'};
-const rankOf=(uid,n)=>adminIds.has(uid)?ADMIN_RANK:getRankProgress(n);
-const adminTitleBox=()=>{const on=adminIds.has(currentUser?.id);return `<div class="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 p-3"><div><div class="text-sm font-semibold">🛡️ Titre Admin</div><div class="text-xs text-zinc-400">Remplace mon grade partout</div></div><button class="btn !flex-none ${on?'sel':''}" onclick="toggleAdminTitle()">${on?'Activé':'Désactivé'}</button></div>`};
-async function toggleAdminTitle(){
-  if(!admin||!currentUser)return;
-  const on=!adminIds.has(currentUser.id);
-  const {error}=await sb.from('profiles').upsert({id:currentUser.id,username:currentProfile?.username||'Admin',admin_title:on});
-  if(error)return toast('Erreur : '+error.message);
-  await loadUserData();renderAuthBox();toast(on?'Titre Admin activé':'Titre Admin désactivé');
+/* ===== Titre Admin (sauvegardé en local) ===== */
+const ADMIN_RANK={name:'🛡️ Administrateur',color:'#ff0000',pct:100,label:'Titre administrateur actif',scintillateRed:true};
+const rankOf=(uid,n)=>(admin && uid && uid===currentUser?.id && adminRankOn)?ADMIN_RANK:getRankProgress(n);
+
+function toggleAdminTitle(){
+  adminRankOn = !adminRankOn;
+  localStorage.setItem('admin_rank_on', adminRankOn);
+  renderAuthBox();
+  toast(adminRankOn ? 'Titre Admin activé' : 'Titre Admin désactivé');
 }
 
 /* ===== Carte Vue Satellite Hybride ===== */
@@ -193,7 +200,6 @@ async function loadUserData(){
   try {
     const {data:{session}}=await sb.auth.getSession();
     currentUser=session?.user||null;
-    const {data:at}=await sb.from('profiles').select('id').eq('admin_title',true);adminIds=new Set((at||[]).map(x=>x.id));
     if(currentUser){
       const {data:p}=await sb.from('profiles').select('*').eq('id',currentUser.id).maybeSingle();
       currentProfile=p;
@@ -219,7 +225,7 @@ async function loadUserData(){
   }
 }
 
-/* ===== Système de Niveaux (jusqu'à 50+ lieux) ===== */
+/* ===== Système de Niveaux ===== */
 function getRankProgress(count){
   if(count >= 50){
     return { name: '⚡ Dieux des urbex', color: '#b000ff', current: count, next: 50, pct: 100, label: 'Niveau Maximum !', scintillate: true };
@@ -284,7 +290,7 @@ async function openLeaderboard(){
   }).sort((a,b)=>b.count-a.count);
 
   $('#lb-content').innerHTML=list.map((item,idx)=>{
-    const scClass=item.rank.scintillate?'scintillating':'';
+    const scClass=item.rank.scintillateRed?'red-scintillating':(item.rank.scintillate?'scintillating':'');
     return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
       <div class="flex items-center gap-3">
         <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
@@ -314,7 +320,7 @@ async function renderAuthBox(){
   if(currentUser){
     const mySpots=spots.filter(s=>s.user_id===currentUser.id);
     const prog=rankOf(currentUser.id,mySpots.length);
-    const scClass=prog.scintillate?'scintillating':'';
+    const scClass=prog.scintillateRed?'red-scintillating':(prog.scintillate?'scintillating':'');
     
     authContent.innerHTML=`
       <div class="space-y-4">
@@ -348,7 +354,15 @@ async function renderAuthBox(){
         </div>
 
         <!-- Titre Admin (visible uniquement par l'administrateur) -->
-        ${admin?adminTitleBox():''}
+        ${admin ? `
+          <div class="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 p-3">
+            <div>
+              <div class="text-sm font-semibold">🛡️ Titre Admin</div>
+              <div class="text-xs text-zinc-400">Remplace mon grade partout</div>
+            </div>
+            <button class="btn !flex-none ${adminRankOn?'sel':''}" onclick="toggleAdminTitle()">${adminRankOn?'Activé':'Désactivé'}</button>
+          </div>
+        ` : ''}
 
         <!-- Notifications / Activité sur mes spots -->
         <div>
@@ -555,7 +569,7 @@ async function loadCom(id){
     if(c.user_id){
       const count=spots.filter(s=>s.user_id===c.user_id).length;
       const r=rankOf(c.user_id,count);
-      const scClass=r.scintillate?'scintillating':'';
+      const scClass=r.scintillateRed?'red-scintillating':(r.scintillate?'scintillating':'');
       rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
     }
     return `<div class="rounded-lg bg-zinc-900 p-2">
