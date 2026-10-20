@@ -35,6 +35,13 @@ html,body{height:100%;margin:0;background:#0c0e11;color:#e6e8ec;font-family:syst
 }
 .scintillating { animation: scintil 1.2s infinite ease-in-out; }
 
+@keyframes redScintil {
+  0% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
+  50% { opacity: 0.6; text-shadow: 0 0 16px #ff4d4d; filter: brightness(1.4); }
+  100% { opacity: 1; text-shadow: 0 0 6px #ff0000; filter: brightness(1); }
+}
+.red-scintillating { animation: redScintil 1.2s infinite ease-in-out; }
+
 .gps-pill{display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem .75rem;border-radius:999px;border:1px solid var(--ln);background:#1a1e25;font-size:.8rem;font-weight:600;color:#e6e8ec;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);transition:all .15s ease}
 .gps-pill:active{transform:scale(0.96);background:var(--a);border-color:var(--a);color:#111}
 </style>
@@ -141,7 +148,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 const safe=u=>/^https?:\/\//i.test(u);
 const ic=v=>v[0][0]==='#'?`<i style="background:${v[0]};width:.6rem;height:.6rem;border-radius:9px;display:inline-block;margin-right:.35rem"></i>`:v[0]+' ';
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v[0][0]==='#'?'':v[0]+' '}${v[1]}</option>`).join('');
-let spots=[],admin=false,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
+let spots=[],admin=false,adminUserId=null,cur=null,placing=false,formOn=false,draft={},pi=0, currentUser=null, userFavorites=new Set(), currentProfile=null, userNotifications=[];
+let adminRankOn=localStorage.getItem('admin_rank_on')!=='false';
+
 const flt={c:new Set(Object.keys(CAT)),d:new Set(Object.keys(DNG)),a:new Set(Object.keys(ACC))};
 const voter=localStorage.uid||(localStorage.uid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hidden'),3200)}
@@ -205,8 +214,11 @@ async function loadUserData(){
   }
 }
 
-/* ===== Système de Niveaux (jusqu'à 50+ lieux) ===== */
-function getRankProgress(count){
+/* ===== Système de Niveaux & Badge Admin ===== */
+function getRankProgress(count, userId){
+  if(admin && userId && userId === adminUserId && adminRankOn){
+    return { name: '🛡️ Administrateur', color: '#ff0000', current: count, next: 50, pct: 100, label: 'Mode Admin Actif', scintillateRed: true };
+  }
   if(count >= 50){
     return { name: '⚡ Dieux des urbex', color: '#b000ff', current: count, next: 50, pct: 100, label: 'Niveau Maximum !', scintillate: true };
   } else if(count >= 35){
@@ -266,11 +278,11 @@ async function openLeaderboard(){
   });
   const list=(profiles||[]).map(p=>{
     const count=counts[p.id]||0;
-    return {username:p.username||'Explorateur', count, rank:getRankProgress(count)};
+    return {username:p.username||'Explorateur', count, rank:getRankProgress(count, p.id)};
   }).sort((a,b)=>b.count-a.count);
 
   $('#lb-content').innerHTML=list.map((item,idx)=>{
-    const scClass=item.rank.scintillate?'scintillating':'';
+    const scClass=item.rank.scintillateRed?'red-scintillating':(item.rank.scintillate?'scintillating':'');
     return `<div class="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
       <div class="flex items-center gap-3">
         <span class="font-bold text-sm w-6 text-center ${idx===0?'text-amber-400':idx===1?'text-zinc-300':idx===2?'text-amber-600':'text-zinc-500'}">#${idx+1}</span>
@@ -299,8 +311,8 @@ async function renderAuthBox(){
   
   if(currentUser){
     const mySpots=spots.filter(s=>s.user_id===currentUser.id);
-    const prog=getRankProgress(mySpots.length);
-    const scClass=prog.scintillate?'scintillating':'';
+    const prog=getRankProgress(mySpots.length, currentUser.id);
+    const scClass=prog.scintillateRed?'red-scintillating':(prog.scintillate?'scintillating':'');
     
     authContent.innerHTML=`
       <div class="space-y-4">
@@ -323,6 +335,17 @@ async function renderAuthBox(){
             <div class="text-[11px] text-zinc-400 text-right">${prog.label}</div>
           </div>
         </div>
+
+        <!-- Option Badge Admin (Uniquement visible pour l'admin) -->
+        ${admin ? `
+          <div class="rounded-xl p-3 border border-red-500/30 bg-red-500/10 flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-xs text-red-300">Badge Administrateur</div>
+              <div class="text-[11px] text-zinc-400">Afficher le badge rouge scintillant</div>
+            </div>
+            <button id="toggle-admin-rank-btn" class="btn !flex-none !py-1 text-xs !bg-red-500/20 !border-red-500/50 text-red-200">${adminRankOn ? 'Désactiver' : 'Activer'}</button>
+          </div>
+        ` : ''}
 
         <!-- Modifier Pseudo -->
         <div class="space-y-1">
@@ -367,6 +390,15 @@ async function renderAuthBox(){
         <button id="logout-btn" class="btn w-full !bg-red-500/20 !border-red-500/50 text-red-300">Se déconnecter</button>
       </div>
     `;
+
+    if(admin && $('#toggle-admin-rank-btn')){
+      $('#toggle-admin-rank-btn').onclick=()=>{
+        adminRankOn=!adminRankOn;
+        localStorage.setItem('admin_rank_on', adminRankOn);
+        renderAuthBox();
+        toast(adminRankOn ? 'Badge Administrateur activé !' : 'Badge Administrateur désactivé');
+      };
+    }
 
     $('#save-uname').onclick=async()=>{
       const nu=$('#prof-uname').value.trim();if(!nu)return toast('Le pseudo ne peut pas être vide');
@@ -537,8 +569,8 @@ async function loadCom(id){
     let rankHtml='';
     if(c.user_id){
       const count=spots.filter(s=>s.user_id===c.user_id).length;
-      const r=getRankProgress(count);
-      const scClass=r.scintillate?'scintillating':'';
+      const r=getRankProgress(count, c.user_id);
+      const scClass=r.scintillateRed?'red-scintillating':(r.scintillate?'scintillating':'');
       rankHtml=`<span class="text-[10px] px-1.5 py-0.5 rounded ml-1 border font-medium ${scClass}" style="border-color:${r.color};color:${r.color};background:${r.color}15">${r.name}</span>`;
     }
     return `<div class="rounded-lg bg-zinc-900 p-2">
@@ -615,7 +647,7 @@ async function upload(files){
 F.onsubmit=async e=>{
   e.preventDefault();if(draft.lat==null)return toast('Définissez d’abord l’emplacement');
   const b=F.querySelector('[type=submit]'),fd=Object.fromEntries(new FormData(F)),id=draft.id;b.disabled=true;
-  const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files').files]);
+  const urls=fd.urls.split('\n').map(x=>x.trim()).filter(safe),up=await upload([...$('#files'].files]);
   const row={title:fd.title.trim(),category:fd.category,access:fd.access,danger:fd.danger,description:fd.description.trim(),photos:[...urls,...up],lat:draft.lat,lng:draft.lng, user_id: currentUser?.id || null};
   const {error}=await(id?sb.from('spots').update(row).eq('id',id):sb.from('spots').insert(row));
   b.disabled=false;if(error)return toast(error.message);
@@ -634,6 +666,7 @@ async function delCom(c,id){await sb.from('comments').delete().eq('id',c);loadCo
 async function checkAdmin(s){
   await loadUserData();
   admin=!!s&&(await sb.rpc('is_admin')).data===true;
+  adminUserId=admin?currentUser?.id:null;
   $('#ab').textContent=admin?'🔓':'🔒';
   $('#admin-notif-btn').classList.toggle('hidden', !admin);
   render();cur&&openSpot(cur);
